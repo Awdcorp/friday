@@ -1,0 +1,35 @@
+# === Python Caches ===
+__pycache__/
+*.py[cod]
+*.pyo
+
+# === Virtual Environments ===
+env/
+venv/
+
+# === Environment Files ===
+.env
+.env.*
+
+# === Model Weights (YOLO) ===
+*.pt
+
+# === Logs and Debug Files ===
+*.log
+
+# === IDE and Editor Settings ===
+.vscode/
+.idea/
+*.swp
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+
+# === Node.js Frontend (if applicable) ===
+node_modules/
+build/
+dist/
+
+# === Railway Config (optional if secret) ===
+backend/railway.json

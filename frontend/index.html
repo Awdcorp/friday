@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Friday Web 2.0</title>
+  <style>
+    video { width: 320px; border-radius: 8px; }
+    #output { margin-top: 10px; font-family: sans-serif; white-space: pre-line; }
+    body { padding: 20px; }
+  </style>
+</head>
+<body>
+
+  <h2>📹 Friday - Live AI Assistant</h2>
+  <video id="camera" autoplay playsinline></video>
+  <div id="output">🧠 Waiting for Friday’s response…</div>
+
+  <script>
+    const video = document.getElementById('camera');
+    const output = document.getElementById('output');
+    const ws = new WebSocket("ws://localhost:8000/ws/friday");
+
+    // Start the webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => alert("Camera access denied: " + err));
+
+    // Capture frame every 2 seconds
+    const canvas = document.createElement('canvas');
+    setInterval(() => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+      canvas.toBlob(blob => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          ws.send(reader.result);  // Send base64 image
+        };
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg');
+    }, 2000);  // Send every 2 sec
+
+    // Receive AI response
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      output.innerText = `🟩 Objects: ${data.objects.join(", ")}\n📄 Text: ${data.text}\n🤖 Friday: ${data.response}`;
+    };
+  </script>
+
+</body>
+</html>
