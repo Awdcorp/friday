@@ -1,0 +1,27 @@
+ultralytics
+opencv-python
+easyocr
+openai
+PyQt5
+pyttsx3
+speechrecognition
+pyautogui
+pygetwindow
+keyboard
+pyautogui
+keyboard
+
+# ✅ HOW TO START FRIDAY (Current Stage)
+# 1. Make sure your webcam is connected
+# 2. Install dependencies:
+#    pip install -r requirements.txt
+#
+# 3. Run the assistant:
+#    python main.py
+#
+# This will:
+# - Launch the overlay UI
+# - Start camera feed
+# - Detect objects and text
+# - Ask GPT what to do
+# - Show all info live in overlay
