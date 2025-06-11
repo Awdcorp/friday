@@ -9,12 +9,16 @@ pyautogui
 pygetwindow
 keyboard
 pyautogui
-keyboard
+sounddevice
+webrtcvad
 
 # ✅ HOW TO START FRIDAY (Current Stage)
 # 1. Make sure your webcam is connected
 # 2. Install dependencies:
 #    pip install -r requirements.txt
+#
+#   install this 
+#   pip install git+https://github.com/openai/whisper.git
 #
 # 3. Run the assistant:
 #    python main.py

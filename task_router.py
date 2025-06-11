@@ -1,4 +1,3 @@
-# task_router.py
 from windows_agent import open_app, type_text, press_key, move_mouse, click
 import re
 
@@ -12,7 +11,7 @@ def route_command(gpt_response):
         for app in apps:
             if app in response:
                 open_app(app)
-                return
+                return True
 
     # TYPE SOMETHING
     if "type" in response or "write" in response:
@@ -20,15 +19,15 @@ def route_command(gpt_response):
         if match:
             text = match.group(2).strip(' "\'')
             type_text(text)
-            return
+            return True
 
     # PRESS KEY
     if "press enter" in response:
         press_key("enter")
-        return
+        return True
     if "press tab" in response:
         press_key("tab")
-        return
+        return True
 
     # CLICK
     if "click" in response:
@@ -38,7 +37,7 @@ def route_command(gpt_response):
             click(x, y)
         else:
             click()
-        return
+        return True
 
     # MOVE MOUSE
     if "move mouse" in response or "move cursor" in response:
@@ -46,7 +45,8 @@ def route_command(gpt_response):
         if match:
             x, y = int(match.group(1)), int(match.group(2))
             move_mouse(x, y)
-            return
+            return True
 
     # FALLBACK
     print("❓ No actionable command found.")
+    return False  # <-- Important: tells main.py to pass to GPT

@@ -1,49 +1,69 @@
-# overlay_ui.py
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout
+from PyQt5.QtCore import Qt
 import sys
-import threading
 
-class Overlay(QWidget):
+# Shared state
+transcribed_text = ""
+on_listen_trigger = []
+on_send_trigger = []
+
+class OverlayWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setGeometry(50, 50, 500, 200)
+        self.setStyleSheet("background-color: rgba(0, 0, 0, 200); color: white;")
 
+        self.init_ui()
+
+    def init_ui(self):
         layout = QVBoxLayout()
 
-        self.objects_label = QLabel("🧠 Objects: ")
-        self.text_label = QLabel("📄 Text: ")
-        self.intent_label = QLabel("💬 Intent: ")
+        self.listen_button = QPushButton("🎙️ Start Listening")
+        self.listen_button.clicked.connect(self.start_listening)
 
-        for label in [self.objects_label, self.text_label, self.intent_label]:
-            label.setStyleSheet("color: white; background-color: rgba(0, 0, 0, 150); padding: 5px;")
-            label.setFont(QFont("Consolas", 10))
-            layout.addWidget(label)
+        self.output_label = QLabel("🧠 Waiting for input...")
+        self.output_label.setAlignment(Qt.AlignCenter)
+
+        self.send_button = QPushButton("✅ Send to GPT")
+        self.send_button.clicked.connect(self.send_to_gpt)
+        self.send_button.setEnabled(False)
+
+        layout.addWidget(self.listen_button)
+        layout.addWidget(self.output_label)
+        layout.addWidget(self.send_button)
 
         self.setLayout(layout)
+        self.resize(400, 200)
+        self.move(100, 100)  # Top-left position
 
-    def update_overlay(self, objects, screen_text, intent):
-        self.objects_label.setText(f"🧠 Objects: {', '.join(objects) if objects else 'None'}")
-        self.text_label.setText(f"📄 Text: {screen_text or 'None'}")
-        self.intent_label.setText(f"💬 Intent: {intent or 'Thinking...'}")
+    def start_listening(self):
+        self.output_label.setText("🎤 Listening...")
+        self.send_button.setEnabled(False)
+        for callback in on_listen_trigger:
+            callback()
 
-def start_overlay_thread(overlay_ref):
+    def send_to_gpt(self):
+        for callback in on_send_trigger:
+            callback(transcribed_text)
+
+
+    def update_output(self, text):
+        global transcribed_text
+        transcribed_text = text
+        self.output_label.setText(f"🧠 You said:\n{text}")
+        self.send_button.setEnabled(True)
+
+# === Entry point ===
+overlay = None
+
+def launch_overlay():
+    global overlay
     app = QApplication(sys.argv)
-    overlay = Overlay()
-    overlay_ref.append(overlay)  # Save reference so we can update it later
+    overlay = OverlayWindow()
     overlay.show()
     sys.exit(app.exec_())
 
-# Global accessor to start and update overlay from main.py
-overlay_instance = []
-
-def launch_overlay():
-    t = threading.Thread(target=start_overlay_thread, args=(overlay_instance,), daemon=True)
-    t.start()
-
-def update_overlay(objects, screen_text, intent):
-    if overlay_instance:
-        overlay_instance[0].update_overlay(objects, screen_text, intent)
+def update_overlay(_, __, message):
+    if overlay:
+        overlay.update_output(message)

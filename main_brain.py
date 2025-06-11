@@ -1,42 +1,35 @@
-# main_brain.py
+from overlay_ui import launch_overlay, update_overlay, on_listen_trigger, on_send_trigger
+from ask_gpt import ask_gpt
+from voice_listener_whisper import listen_once
+from task_router import route_command  # ✅ Added
 
-from task_router import route_command
-from overlay_ui import launch_overlay, update_overlay
-from voice_listener_whisper import listen_loop
-import time
+import threading
 
-# 🧠 Test mode commands (simulated GPT output)
-test_commands = [
-    "Open notepad",
-    "Type Hello, this is Friday",
-    "Press enter",
-    "Click 500 300",
-    "Move mouse to 100 200"
-]
+def handle_listen_click():
+    print("🔘 Listen button clicked")
+    result = listen_once()
+    print(f"🧠 Transcribed: {result}")
+    update_overlay([], "", result or "⚠️ No speech detected")
 
-def run_test_mode():
-    print("🔧 Running in TEST MODE (simulated commands)")
+def handle_send_click(transcript):
+    print(f"📤 Sending to GPT or routing: {transcript}")
+    update_overlay([], "", f"🔄 Checking command: {transcript}")
+
+    # ✅ Attempt to route system command first
+    routed = route_command(transcript)
+    if routed:
+        update_overlay([], "", f"✅ Actioned: {transcript}")
+    else:
+        update_overlay([], "", f"🤖 Thinking about: {transcript}")
+        reply = ask_gpt(transcript)
+        print(f"🤖 GPT: {reply}")
+        update_overlay([], "", f"You: {transcript}\n\nFriday: {reply}")
+
+def run_overlay_mode():
+    print("🎙️ Running in BUTTON MODE (overlay-based)")
+    on_listen_trigger.append(handle_listen_click)
+    on_send_trigger.append(handle_send_click)
     launch_overlay()
-    time.sleep(1)  # Give time for overlay to appear
-
-    for command in test_commands:
-        print(f"\n🧠 Test command: {command}")
-        update_overlay([], "", command)
-        route_command(command)
-        time.sleep(2)
-
-def run_voice_mode():
-    print("🎙️ Running in VOICE MODE (speak your commands naturally)")
-    launch_overlay()
-    time.sleep(1)  # Let overlay settle
-    listen_loop()  # This blocks and continuously listens
 
 if __name__ == "__main__":
-    MODE = "voice"  # Change to "test" or "voice"
-
-    if MODE == "test":
-        run_test_mode()
-    elif MODE == "voice":
-        run_voice_mode()
-    else:
-        print("❌ Invalid MODE. Use 'test' or 'voice'.")
+    run_overlay_mode()
