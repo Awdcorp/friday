@@ -1,32 +1,44 @@
 from overlay_ui import launch_overlay, update_overlay, on_listen_trigger, on_send_trigger
+import overlay_ui
+import voice_listener_vad
+from task_router import route_command
 from ask_gpt import ask_gpt
 from voice_listener_whisper import listen_once
-from task_router import route_command  # ✅ Added
 
-import threading
+# ✅ Register callback for overlay update
+voice_listener_vad.update_overlay_callback = update_overlay
 
+# ✅ Main shared command handler
+def process_command(user_input):
+    print(f"📤 Processing: {user_input}")
+    routed = route_command(user_input)
+    if routed:
+        return f"✅ Actioned: {user_input}"
+    else:
+        reply = ask_gpt(user_input)
+        return f"🤖 {reply}"
+
+# ✅ Register command handler with overlay
+overlay_ui.process_command_callback = process_command
+
+# 🔁 Trigger handlers
 def handle_listen_click():
-    print("🔘 Listen button clicked")
-    result = listen_once()
-    print(f"🧠 Transcribed: {result}")
-    update_overlay([], "", result or "⚠️ No speech detected")
+    print("🎤 Listening...")
+    transcript = listen_once()
+    print("🧠 Transcript:", transcript)
+    update_overlay([], "", f"You: {transcript}")
+    result = process_command(transcript)
+    update_overlay([], "", result)
 
 def handle_send_click(transcript):
-    print(f"📤 Sending to GPT or routing: {transcript}")
-    update_overlay([], "", f"🔄 Checking command: {transcript}")
+    print("⌨️ Text:", transcript)
+    update_overlay([], "", f"🔄 Checking: {transcript}")
+    result = process_command(transcript)
+    update_overlay([], "", result)
 
-    # ✅ Attempt to route system command first
-    routed = route_command(transcript)
-    if routed:
-        update_overlay([], "", f"✅ Actioned: {transcript}")
-    else:
-        update_overlay([], "", f"🤖 Thinking about: {transcript}")
-        reply = ask_gpt(transcript)
-        print(f"🤖 GPT: {reply}")
-        update_overlay([], "", f"You: {transcript}\n\nFriday: {reply}")
-
+# 🚀 Launch UI
 def run_overlay_mode():
-    print("🎙️ Running in BUTTON MODE (overlay-based)")
+    print("🔁 Starting Overlay UI")
     on_listen_trigger.append(handle_listen_click)
     on_send_trigger.append(handle_send_click)
     launch_overlay()

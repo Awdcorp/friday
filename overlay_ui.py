@@ -1,69 +1,97 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout
-from PyQt5.QtCore import Qt
-import sys
+import tkinter as tk
+import threading
+from voice_listener_vad import listen_once  # Voice input
 
-# Shared state
-transcribed_text = ""
+# === External Callback Handlers (to be set by main_brain) ===
+process_command_callback = None
+
+# === Setup Main Window ===
+root = tk.Tk()
+root.title("Friday Assistant")
+root.geometry("400x350+50+200")  # Middle-left position
+root.configure(bg='#1f1f1f')
+root.attributes("-topmost", True)
+root.attributes("-alpha", 0.85)  # Transparent glass style
+root.overrideredirect(True)  # No border
+
+# === Style ===
+text_fg = "#FFFFFF"
+btn_bg = "#444"
+btn_fg = "#FFF"
+font_main = ("Segoe UI", 11)
+
+# === Header ===
+header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"),
+                  bg="#1f1f1f", fg="#00FFAA")
+header.pack(pady=(10, 5))
+
+# === Text Input Field ===
+input_text = tk.Entry(root, font=font_main, bg="#2d2d2d", fg=text_fg, insertbackground='white')
+input_text.pack(padx=20, pady=(5, 10), fill="x")
+input_text.bind("<Return>", lambda event: send_text_command())  # Press Enter to send
+
+# === Output Display ===
+output_text = tk.Text(root, height=6, font=font_main, bg="#1f1f1f", fg=text_fg, wrap="word")
+output_text.pack(padx=20, pady=(5, 10), fill="both")
+
+# === Event Hooks ===
 on_listen_trigger = []
 on_send_trigger = []
 
-class OverlayWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setStyleSheet("background-color: rgba(0, 0, 0, 200); color: white;")
+# === Text Input Handler ===
+def send_text_command():
+    user_input = input_text.get().strip()
+    if not user_input:
+        return
+    output_text.insert(tk.END, f"You: {user_input}\n")
+    input_text.delete(0, tk.END)
 
-        self.init_ui()
+    def process():
+        if process_command_callback:
+            response = process_command_callback(user_input)
+            output_text.insert(tk.END, f"Friday: {response}\n")
+        else:
+            output_text.insert(tk.END, "⚠️ No handler defined for text command.\n")
 
-    def init_ui(self):
-        layout = QVBoxLayout()
+    threading.Thread(target=process).start()
+    for cb in on_send_trigger:
+        cb(user_input)
 
-        self.listen_button = QPushButton("🎙️ Start Listening")
-        self.listen_button.clicked.connect(self.start_listening)
+# === Voice Input Handler ===
+def send_voice_command():
+    output_text.insert(tk.END, "🎤 Listening...\n")
 
-        self.output_label = QLabel("🧠 Waiting for input...")
-        self.output_label.setAlignment(Qt.AlignCenter)
+    def listen_and_process():
+        transcript = listen_once()
+        output_text.insert(tk.END, f"You (Voice): {transcript}\n")
+        if process_command_callback:
+            response = process_command_callback(transcript)
+            output_text.insert(tk.END, f"Friday: {response}\n")
 
-        self.send_button = QPushButton("✅ Send to GPT")
-        self.send_button.clicked.connect(self.send_to_gpt)
-        self.send_button.setEnabled(False)
+    threading.Thread(target=listen_and_process).start()
+    for cb in on_listen_trigger:
+        cb()
 
-        layout.addWidget(self.listen_button)
-        layout.addWidget(self.output_label)
-        layout.addWidget(self.send_button)
+# === Buttons ===
+btn_frame = tk.Frame(root, bg="#1f1f1f")
+btn_frame.pack(pady=(0, 10))
 
-        self.setLayout(layout)
-        self.resize(400, 200)
-        self.move(100, 100)  # Top-left position
+send_btn = tk.Button(btn_frame, text="Send", command=send_text_command, font=font_main,
+                     bg=btn_bg, fg=btn_fg, width=10)
+send_btn.grid(row=0, column=0, padx=10)
 
-    def start_listening(self):
-        self.output_label.setText("🎤 Listening...")
-        self.send_button.setEnabled(False)
-        for callback in on_listen_trigger:
-            callback()
+voice_btn = tk.Button(btn_frame, text="🎤 Listen", command=send_voice_command, font=font_main,
+                      bg=btn_bg, fg=btn_fg, width=10)
+voice_btn.grid(row=0, column=1, padx=10)
 
-    def send_to_gpt(self):
-        for callback in on_send_trigger:
-            callback(transcribed_text)
+# === Exit Button ===
+exit_btn = tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 10),
+                     bg="#aa3333", fg="white")
+exit_btn.pack(side="bottom", pady=5)
 
-
-    def update_output(self, text):
-        global transcribed_text
-        transcribed_text = text
-        self.output_label.setText(f"🧠 You said:\n{text}")
-        self.send_button.setEnabled(True)
-
-# === Entry point ===
-overlay = None
+# === External API Functions ===
+def update_overlay(obj_list, screen_text, status):
+    output_text.insert(tk.END, f"{status}\n")
 
 def launch_overlay():
-    global overlay
-    app = QApplication(sys.argv)
-    overlay = OverlayWindow()
-    overlay.show()
-    sys.exit(app.exec_())
-
-def update_overlay(_, __, message):
-    if overlay:
-        overlay.update_output(message)
+    root.mainloop()
