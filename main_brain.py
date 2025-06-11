@@ -1,3 +1,5 @@
+from memory_manager import load_memory
+load_memory()
 from overlay_ui import launch_overlay, update_overlay, on_listen_trigger, on_send_trigger
 import overlay_ui
 import voice_listener_vad

@@ -1,6 +1,7 @@
 import tkinter as tk
 import threading
-from voice_listener_vad import listen_once  # Voice input
+from voice_listener_vad import listen_once
+from memory_manager import get_full_memory_log  # ✅ Updated import
 
 # === External Callback Handlers (to be set by main_brain) ===
 process_command_callback = None
@@ -8,11 +9,11 @@ process_command_callback = None
 # === Setup Main Window ===
 root = tk.Tk()
 root.title("Friday Assistant")
-root.geometry("400x350+50+200")  # Middle-left position
+root.geometry("400x350+50+200")
 root.configure(bg='#1f1f1f')
 root.attributes("-topmost", True)
-root.attributes("-alpha", 0.85)  # Transparent glass style
-root.overrideredirect(True)  # No border
+root.attributes("-alpha", 0.85)
+root.overrideredirect(True)
 
 # === Style ===
 text_fg = "#FFFFFF"
@@ -28,15 +29,11 @@ header.pack(pady=(10, 5))
 # === Text Input Field ===
 input_text = tk.Entry(root, font=font_main, bg="#2d2d2d", fg=text_fg, insertbackground='white')
 input_text.pack(padx=20, pady=(5, 10), fill="x")
-input_text.bind("<Return>", lambda event: send_text_command())  # Press Enter to send
+input_text.bind("<Return>", lambda event: send_text_command())
 
 # === Output Display ===
 output_text = tk.Text(root, height=6, font=font_main, bg="#1f1f1f", fg=text_fg, wrap="word")
 output_text.pack(padx=20, pady=(5, 10), fill="both")
-
-# === Event Hooks ===
-on_listen_trigger = []
-on_send_trigger = []
 
 # === Text Input Handler ===
 def send_text_command():
@@ -54,8 +51,6 @@ def send_text_command():
             output_text.insert(tk.END, "⚠️ No handler defined for text command.\n")
 
     threading.Thread(target=process).start()
-    for cb in on_send_trigger:
-        cb(user_input)
 
 # === Voice Input Handler ===
 def send_voice_command():
@@ -69,8 +64,6 @@ def send_voice_command():
             output_text.insert(tk.END, f"Friday: {response}\n")
 
     threading.Thread(target=listen_and_process).start()
-    for cb in on_listen_trigger:
-        cb()
 
 # === Buttons ===
 btn_frame = tk.Frame(root, bg="#1f1f1f")
@@ -89,9 +82,23 @@ exit_btn = tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 1
                      bg="#aa3333", fg="white")
 exit_btn.pack(side="bottom", pady=5)
 
+# === Event Triggers (still exposed, but not used internally anymore) ===
+on_listen_trigger = []
+on_send_trigger = []
+
 # === External API Functions ===
 def update_overlay(obj_list, screen_text, status):
     output_text.insert(tk.END, f"{status}\n")
 
 def launch_overlay():
+    # ✅ Load and display saved memory
+    past = get_full_memory_log()
+    if past:
+        output_text.insert(tk.END, "🔁 Previous Session:\n\n")
+        for entry in past:
+            role = entry.get("role", "user").capitalize()
+            content = entry.get("content", "")
+            output_text.insert(tk.END, f"{role}: {content}\n")
+        output_text.insert(tk.END, "\n")
+
     root.mainloop()
