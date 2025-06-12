@@ -1,10 +1,33 @@
 import tkinter as tk
+from tkinter import ttk
 import threading
 from voice_listener_vad import listen_once
 from memory_manager import get_full_memory_log
+from ask_gpt import ask_gpt
+from local_llm_interface import ask_local_llm
+
+# === Unified Prompt Router ===
+def ask_with_model(prompt):
+    mode = model_var.get()
+    print(f"\n🧠 Mode selected: {mode}")
+    print(f"📤 Prompt sent: {prompt}")
+
+    if mode == "GPT-4":
+        print("🌐 Sending to GPT-4 (Cloud)")
+        return ask_gpt(prompt)
+    elif mode == "Local (Mistral)":
+        print("💻 Sending to Local LLM (Mistral via Ollama)")
+        return ask_local_llm(prompt)
+    elif mode == "Auto":
+        try:
+            print("🔄 Trying Local LLM first...")
+            return ask_local_llm(prompt)
+        except Exception as e:
+            print("⚠️ Local LLM failed, switching to GPT.")
+            return ask_gpt(prompt)
 
 # === External Callback Handler ===
-process_command_callback = None
+process_command_callback = ask_with_model
 
 # === Main Window ===
 root = tk.Tk()
@@ -28,6 +51,13 @@ popup_grid_frame.pack(padx=6, pady=6)
 
 response_bubbles = []  # Store recent 3
 
+# === Model Selector Dropdown ===
+model_var = tk.StringVar(value="Auto")
+model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
+                              values=["Auto", "GPT-4", "Local (Mistral)"])
+model_selector.place(x=10, y=10)
+model_selector.configure(width=20)
+
 # === GPT Text Area (fallback) + Close Popup Logic ===
 def refresh_bubble_layout():
     for idx, bubble in enumerate(response_bubbles):
@@ -46,7 +76,6 @@ def show_response_popup(text):
         response_bubbles[0].destroy()
         response_bubbles = response_bubbles[1:]
 
-    # Minimalist transparent bubble
     frame = tk.Frame(popup_grid_frame, bg="#1e1e1e", bd=0, highlightthickness=0)
 
     label = tk.Label(
@@ -63,11 +92,9 @@ def show_response_popup(text):
     )
     close_btn.place(relx=1.0, rely=0.0, anchor="ne", x=-4, y=4)
 
-    # Append and layout
     response_bubbles.append(frame)
     refresh_bubble_layout()
 
-    # Position floating container to right of main panel
     x = root.winfo_x() + root.winfo_width() + 10
     y = root.winfo_y()
     popup_container.geometry(f"+{x}+{y}")
@@ -83,7 +110,7 @@ font_main = ("Segoe UI", 11)
 # === Header ===
 header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"),
                   bg="#1f1f1f", fg="#00FFAA")
-header.pack(pady=(10, 5))
+header.pack(pady=(40, 5))
 
 # === Input Field ===
 input_text = tk.Entry(root, font=font_main, bg="#2d2d2d", fg=text_fg, insertbackground='white')
@@ -100,6 +127,7 @@ drag_data = {"x": 0, "y": 0}
 def start_drag(event):
     drag_data["x"] = event.x
     drag_data["y"] = event.y
+
 def do_drag(event):
     dx = event.x - drag_data["x"]
     dy = event.y - drag_data["y"]
@@ -107,10 +135,11 @@ def do_drag(event):
     y = root.winfo_y() + dy
     root.geometry(f"+{x}+{y}")
     popup_container.geometry(f"+{x + root.winfo_width() + 10}+{y}")
+
 header.bind("<Button-1>", start_drag)
 header.bind("<B1-Motion>", do_drag)
 
-# === Text Command Input
+# === Text Command Input ===
 def send_text_command():
     user_input = input_text.get().strip()
     if not user_input:
@@ -122,18 +151,12 @@ def send_text_command():
     input_text.delete(0, tk.END)
 
     def process():
-        if process_command_callback:
-            response = process_command_callback(user_input)
-            if response.startswith("🤖 "):
-                show_response_popup(response[2:])
-            else:
-                output_text.config(state="normal")
-                output_text.insert(tk.END, f"Friday: {response}\n")
-                output_text.config(state="disabled")
+        response = process_command_callback(user_input)
+        show_response_popup(response)
 
     threading.Thread(target=process).start()
 
-# === Voice Command Input
+# === Voice Command Input ===
 def send_voice_command():
     output_text.config(state="normal")
     output_text.insert(tk.END, "🎤 Listening...\n")
@@ -144,18 +167,12 @@ def send_voice_command():
         output_text.config(state="normal")
         output_text.insert(tk.END, f"You (Voice): {transcript}\n")
         output_text.config(state="disabled")
-        if process_command_callback:
-            response = process_command_callback(transcript)
-            if response.startswith("🤖 "):
-                show_response_popup(response[2:])
-            else:
-                output_text.config(state="normal")
-                output_text.insert(tk.END, f"Friday: {response}\n")
-                output_text.config(state="disabled")
+        response = process_command_callback(transcript)
+        show_response_popup(response)
 
     threading.Thread(target=listen_and_process).start()
 
-# === Buttons
+# === Buttons ===
 btn_frame = tk.Frame(root, bg="#1f1f1f")
 btn_frame.pack(pady=(0, 10))
 
@@ -171,7 +188,7 @@ exit_btn = tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 1
                      bg="#aa3333", fg="white")
 exit_btn.pack(side="bottom", pady=5)
 
-# === External Functions
+# === External Functions ===
 def update_overlay(obj_list, screen_text, status):
     output_text.config(state="normal")
     output_text.insert(tk.END, f"{status}\n")
@@ -180,7 +197,7 @@ def update_overlay(obj_list, screen_text, status):
 def launch_overlay():
     past = get_full_memory_log()
     if past:
-        past = [past[-1]]  # Only show last message
+        past = [past[-1]]
     if past:
         output_text.config(state="normal")
         output_text.insert(tk.END, "🔁 Previous Session:\n\n")

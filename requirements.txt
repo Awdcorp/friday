@@ -8,9 +8,9 @@ speechrecognition
 pyautogui
 pygetwindow
 keyboard
-pyautogui
 sounddevice
 webrtcvad
+requests
 
 # ✅ HOW TO START FRIDAY (Current Stage)
 # 1. Make sure your webcam is connected

@@ -1,24 +1,24 @@
 from memory_manager import load_memory
 load_memory()
-from overlay_ui import launch_overlay, update_overlay, on_listen_trigger, on_send_trigger
+from overlay_ui import launch_overlay, update_overlay, on_listen_trigger, on_send_trigger, ask_with_model
 import overlay_ui
 import voice_listener_vad
 from task_router import route_command
-from ask_gpt import ask_gpt
 from voice_listener_whisper import listen_once
 
 # ✅ Register callback for overlay update
 voice_listener_vad.update_overlay_callback = update_overlay
 
-# ✅ Main shared command handler
+# ✅ Main shared command handler (respects selected model)
 def process_command(user_input):
-    print(f"📤 Processing: {user_input}")
+    print(f"\n📤 Processing: {user_input}")
     routed = route_command(user_input)
     if routed:
+        print("✅ Routed to internal handler")
         return f"✅ Actioned: {user_input}"
     else:
-        reply = ask_gpt(user_input)
-        return f"🤖 {reply}"
+        reply = ask_with_model(user_input)
+        return reply if reply.startswith("🤖") else f"🤖 {reply}"
 
 # ✅ Register command handler with overlay
 overlay_ui.process_command_callback = process_command
