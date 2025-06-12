@@ -15,27 +15,64 @@ root.attributes("-topmost", True)
 root.attributes("-alpha", 0.9)
 root.overrideredirect(True)
 
-# === Popup Window for GPT Response ===
-response_popup = tk.Toplevel(root)
-response_popup.overrideredirect(True)
-response_popup.attributes("-topmost", True)
-response_popup.attributes("-alpha", 0.92)
-response_popup.configure(bg="#202020")
-response_popup.withdraw()
+# === Floating Container for Response Bubbles ===
+popup_container = tk.Toplevel(root)
+popup_container.overrideredirect(True)
+popup_container.attributes("-topmost", True)
+popup_container.attributes("-alpha", 0.0)  # Start hidden
+popup_container.configure(bg="")  # Transparent root
+popup_container.withdraw()
 
-# === GPT Text Area + Close Button ===
-response_frame = tk.Frame(response_popup, bg="#202020")
-response_frame.pack(padx=8, pady=8)
+popup_grid_frame = tk.Frame(popup_container, bg="", bd=0, highlightthickness=0)
+popup_grid_frame.pack(padx=6, pady=6)
 
-response_label = tk.Label(response_frame, text="", font=("Segoe UI", 10), bg="#202020",
-                          fg="#00FFAA", wraplength=300, justify="left")
-response_label.pack(side="left")
+response_bubbles = []  # Store recent 3
 
-close_btn = tk.Button(response_frame, text="✖", command=lambda: close_popup(show_fallback=True),
-                      font=("Segoe UI", 10), bg="#aa3333", fg="white", padx=6)
-close_btn.pack(side="right", padx=(10, 0))
+# === GPT Text Area (fallback) + Close Popup Logic ===
+def refresh_bubble_layout():
+    for idx, bubble in enumerate(response_bubbles):
+        bubble.grid(row=0, column=idx, padx=10, pady=10, sticky="n")
 
-popup_visible = False  # Tracks popup visibility state
+def remove_bubble(frame):
+    frame.grid_forget()
+    if frame in response_bubbles:
+        response_bubbles.remove(frame)
+    refresh_bubble_layout()
+
+def show_response_popup(text):
+    global response_bubbles
+
+    if len(response_bubbles) >= 3:
+        response_bubbles[0].destroy()
+        response_bubbles = response_bubbles[1:]
+
+    # Minimalist transparent bubble
+    frame = tk.Frame(popup_grid_frame, bg="#1e1e1e", bd=0, highlightthickness=0)
+
+    label = tk.Label(
+        frame, text=f"{text}", font=("Segoe UI", 10),
+        bg="#1e1e1e", fg="#00FFAA",
+        wraplength=200, justify="left", anchor="nw"
+    )
+    label.pack(side="top", anchor="w", padx=10, pady=6)
+
+    close_btn = tk.Button(
+        frame, text="✖", command=lambda: remove_bubble(frame),
+        font=("Segoe UI", 8), bg="#1e1e1e", fg="#ff6666",
+        relief="flat", bd=0, highlightthickness=0
+    )
+    close_btn.place(relx=1.0, rely=0.0, anchor="ne", x=-4, y=4)
+
+    # Append and layout
+    response_bubbles.append(frame)
+    refresh_bubble_layout()
+
+    # Position floating container to right of main panel
+    x = root.winfo_x() + root.winfo_width() + 10
+    y = root.winfo_y()
+    popup_container.geometry(f"+{x}+{y}")
+    popup_container.attributes("-alpha", 0.92)
+    popup_container.deiconify()
 
 # === Styling ===
 text_fg = "#FFFFFF"
@@ -53,50 +90,27 @@ input_text = tk.Entry(root, font=font_main, bg="#2d2d2d", fg=text_fg, insertback
 input_text.pack(padx=20, pady=(5, 10), fill="x")
 input_text.bind("<Return>", lambda event: send_text_command())
 
-# === Output Display (Only shows fallback GPT response) ===
+# === Output Display (Fallback)
 output_text = tk.Text(root, height=6, font=font_main, bg="#1f1f1f", fg=text_fg,
                       wrap="word", state="disabled")
 output_text.pack(padx=20, pady=(5, 10), fill="both")
 
 # === Dragging Logic ===
 drag_data = {"x": 0, "y": 0}
-
 def start_drag(event):
     drag_data["x"] = event.x
     drag_data["y"] = event.y
-
 def do_drag(event):
     dx = event.x - drag_data["x"]
     dy = event.y - drag_data["y"]
     x = root.winfo_x() + dx
     y = root.winfo_y() + dy
     root.geometry(f"+{x}+{y}")
-    if popup_visible:
-        response_popup.geometry(f"+{x + 410}+{y}")
-
+    popup_container.geometry(f"+{x + root.winfo_width() + 10}+{y}")
 header.bind("<Button-1>", start_drag)
 header.bind("<B1-Motion>", do_drag)
 
-# === Floating GPT Response Handling ===
-def show_response_popup(text):
-    global popup_visible
-    popup_visible = True
-    response_label.config(text=f"🤖 {text}")
-    x = root.winfo_x() + 410
-    y = root.winfo_y()
-    response_popup.geometry(f"+{x}+{y}")
-    response_popup.deiconify()
-
-def close_popup(show_fallback=False):
-    global popup_visible
-    popup_visible = False
-    response_popup.withdraw()
-    if show_fallback:
-        output_text.config(state="normal")
-        output_text.insert(tk.END, f"Friday: 🤖 {response_label.cget('text')}\n")
-        output_text.config(state="disabled")
-
-# === Input: Text Command ===
+# === Text Command Input
 def send_text_command():
     user_input = input_text.get().strip()
     if not user_input:
@@ -119,7 +133,7 @@ def send_text_command():
 
     threading.Thread(target=process).start()
 
-# === Input: Voice Command ===
+# === Voice Command Input
 def send_voice_command():
     output_text.config(state="normal")
     output_text.insert(tk.END, "🎤 Listening...\n")
@@ -141,7 +155,7 @@ def send_voice_command():
 
     threading.Thread(target=listen_and_process).start()
 
-# === Button Layout ===
+# === Buttons
 btn_frame = tk.Frame(root, bg="#1f1f1f")
 btn_frame.pack(pady=(0, 10))
 
@@ -157,11 +171,7 @@ exit_btn = tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 1
                      bg="#aa3333", fg="white")
 exit_btn.pack(side="bottom", pady=5)
 
-# === Dummy triggers (not used internally anymore) ===
-on_listen_trigger = []
-on_send_trigger = []
-
-# === External API Functions ===
+# === External Functions
 def update_overlay(obj_list, screen_text, status):
     output_text.config(state="normal")
     output_text.insert(tk.END, f"{status}\n")
@@ -169,6 +179,8 @@ def update_overlay(obj_list, screen_text, status):
 
 def launch_overlay():
     past = get_full_memory_log()
+    if past:
+        past = [past[-1]]  # Only show last message
     if past:
         output_text.config(state="normal")
         output_text.insert(tk.END, "🔁 Previous Session:\n\n")
@@ -180,3 +192,7 @@ def launch_overlay():
         output_text.config(state="disabled")
 
     root.mainloop()
+
+# Dummy triggers
+on_listen_trigger = []
+on_send_trigger = []
