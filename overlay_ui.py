@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 from voice_listener_vad import listen_once
+from voice_listener_google import start_google_listening, stop_google_listening
 from memory_manager import get_full_memory_log
 from ask_gpt import ask_gpt
 from local_llm_interface import ask_local_llm
@@ -42,14 +43,14 @@ root.overrideredirect(True)
 popup_container = tk.Toplevel(root)
 popup_container.overrideredirect(True)
 popup_container.attributes("-topmost", True)
-popup_container.attributes("-alpha", 0.0)  # Start hidden
-popup_container.configure(bg="")  # Transparent root
+popup_container.attributes("-alpha", 0.0)
+popup_container.configure(bg="")
 popup_container.withdraw()
 
 popup_grid_frame = tk.Frame(popup_container, bg="", bd=0, highlightthickness=0)
 popup_grid_frame.pack(padx=6, pady=6)
 
-response_bubbles = []  # Store recent 3
+response_bubbles = []
 
 # === Model Selector Dropdown ===
 model_var = tk.StringVar(value="Auto")
@@ -164,13 +165,33 @@ def send_voice_command():
 
     def listen_and_process():
         transcript = listen_once()
-        output_text.config(state="normal")
-        output_text.insert(tk.END, f"You (Voice): {transcript}\n")
-        output_text.config(state="disabled")
-        response = process_command_callback(transcript)
-        show_response_popup(response)
+        if transcript.strip():  # Only process if not empty
+            output_text.config(state="normal")
+            output_text.insert(tk.END, f"You (Voice): {transcript}\n")
+            output_text.config(state="disabled")
+            response = process_command_callback(transcript)
+            show_response_popup(response)
+        else:
+            print("⚠️ Empty voice input skipped.")
+
 
     threading.Thread(target=listen_and_process).start()
+
+# === Google Live Mode Trigger ===
+def start_google_mode():
+    def update_ui(_1, _2, status):
+        if status.startswith("🧠 Final:"):
+            final_transcript = status.replace("🧠 Final:", "").strip()
+            output_text.config(state="normal")
+            output_text.insert(tk.END, f"You (Voice): {final_transcript}\n")
+            output_text.config(state="disabled")
+
+    def handle_final_transcript(transcript):
+        response = process_command_callback(transcript)
+        show_response_popup(response)
+        return "🧠 Processed"
+
+    threading.Thread(target=start_google_listening, args=(update_ui, handle_final_transcript)).start()
 
 # === Buttons ===
 btn_frame = tk.Frame(root, bg="#1f1f1f")
@@ -183,6 +204,10 @@ send_btn.grid(row=0, column=0, padx=10)
 voice_btn = tk.Button(btn_frame, text="🎤 Listen", command=send_voice_command, font=font_main,
                       bg=btn_bg, fg=btn_fg, width=10)
 voice_btn.grid(row=0, column=1, padx=10)
+
+live_btn = tk.Button(btn_frame, text="🟢 Google STT", command=start_google_mode, font=font_main,
+                     bg=btn_bg, fg=btn_fg, width=14)
+live_btn.grid(row=0, column=2, padx=10)
 
 exit_btn = tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 10),
                      bg="#aa3333", fg="white")

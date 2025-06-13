@@ -1,12 +1,14 @@
 from memory_manager import load_memory
 load_memory()
+
 from overlay_ui import launch_overlay, update_overlay, on_listen_trigger, on_send_trigger, ask_with_model
 import overlay_ui
 import voice_listener_vad
 from task_router import route_command
 from voice_listener_whisper import listen_once
+from voice_listener_realtime import start_continuous_mode, stop_continuous_mode  # ✅ NEW
 
-# ✅ Register callback for overlay update
+# ✅ Register overlay update callback for legacy VAD
 voice_listener_vad.update_overlay_callback = update_overlay
 
 # ✅ Main shared command handler (respects selected model)
@@ -23,7 +25,7 @@ def process_command(user_input):
 # ✅ Register command handler with overlay
 overlay_ui.process_command_callback = process_command
 
-# 🔁 Trigger handlers
+# 🔁 Trigger handlers for manual voice & text buttons
 def handle_listen_click():
     print("🎤 Listening...")
     transcript = listen_once()
