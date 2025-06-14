@@ -11,6 +11,7 @@ keyboard
 sounddevice
 webrtcvad
 requests
+pyaudio
 
 # ✅ HOW TO START FRIDAY (Current Stage)
 # 1. Make sure your webcam is connected

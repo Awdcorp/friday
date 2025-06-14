@@ -120,10 +120,20 @@ def listen_loop(update_callback, command_callback):
 # === Public API
 def start_google_listening(update_callback, command_callback):
     global is_listening, stream_thread
+
     if is_listening:
+        print("⛔ Already listening (Google STT)")
         return
+
     is_listening = True
-    stream_thread = threading.Thread(target=listen_loop, args=(update_callback, command_callback))
+
+    def wrapped_loop():
+        listen_loop(update_callback, command_callback)
+        # ✅ Reset flag once listening thread completes
+        global is_listening
+        is_listening = False
+
+    stream_thread = threading.Thread(target=wrapped_loop)
     stream_thread.start()
 
 def stop_google_listening():
