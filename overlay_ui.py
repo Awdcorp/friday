@@ -33,7 +33,6 @@ drag = {"x": 0, "y": 0}
 fixed_popups = [None, None, None]
 popup_index = 0
 
-
 def start_drag(e):
     drag["x"], drag["y"] = e.x, e.y
 
@@ -46,7 +45,7 @@ def do_drag(e):
             col = idx % 3
             row = idx // 3
             px = x + 420 + (col * 460)
-            py = y + 60 + (row * 260)
+            py = y + (row * 260)
             entry['win'].geometry(f"420x{entry['height']}+{px}+{py}")
 
 # === Header ===
@@ -95,7 +94,7 @@ def show_floating_response(text):
     height = min(base_height, max_height)
 
     px = root.winfo_x() + 420 + (col * 460)
-    py = root.winfo_y() + 60 + (row * 260)
+    py = root.winfo_y() + (row * 260)
 
     if fixed_popups[col]:
         fixed_popups[col]['win'].destroy()
@@ -104,13 +103,25 @@ def show_floating_response(text):
     popup.overrideredirect(True)
     popup.attributes("-topmost", True)
     popup.geometry(f"420x{height}+{px}+{py}")
+    popup.configure(bg="#1a1a1a")
 
-    outer = tk.Frame(popup, bg="#2b2b2b", bd=2)
+    # === Outer frame (no border)
+    outer = tk.Frame(popup, bg="#2b2b2b", bd=0, highlightthickness=0, relief="flat")
     outer.pack(expand=True, fill="both", padx=10, pady=10)
 
+    # === Header with top-close button
+    header = tk.Frame(outer, bg="#2b2b2b")
+    header.pack(fill="x")
+    close_btn = tk.Button(header, text="✖", command=popup.destroy,
+                          font=("Segoe UI", 9), bg="#2b2b2b", fg="red",
+                          relief="flat", bd=0)
+    close_btn.pack(side="right", padx=4, pady=2)
+
+    # === Scrollable Canvas
     canvas = tk.Canvas(outer, bg="#2b2b2b", highlightthickness=0)
-    frame = tk.Frame(canvas, bg="#2b2b2b")
     canvas.pack(side="left", fill="both", expand=True)
+
+    frame = tk.Frame(canvas, bg="#2b2b2b")
     canvas.create_window((0, 0), window=frame, anchor='nw')
 
     def on_configure(event):
@@ -124,18 +135,13 @@ def show_floating_response(text):
         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
     bind_scroll()
 
-    lbl = tk.Label(frame, text=text, font=("Segoe UI", 10), fg="#DDDDDD", bg="#2b2b2b", wraplength=380, justify="left", anchor="nw")
+    # === Content Label
+    lbl = tk.Label(frame, text=text, font=("Segoe UI", 10), fg="#DDDDDD", bg="#2b2b2b",
+                   wraplength=380, justify="left", anchor="nw")
     lbl.pack(anchor="w", padx=8, pady=6, expand=True, fill="both")
-
-    delete_btn = tk.Button(frame, text="🗑 Remove", command=popup.destroy, font=("Segoe UI", 9), bg="#444", fg="red", relief="flat")
-    delete_btn.pack(anchor="se", padx=6, pady=(0, 6))
-
-    popup.configure(bg="#1a1a1a")
-    outer.configure(bg="#333333", relief="raised", bd=3)
 
     fixed_popups[col] = {"win": popup, "col": col, "row": row, "height": height}
     popup_index = (popup_index + 1) % 3
-
 
 # === Text Command ===
 def send_text_command():
@@ -147,7 +153,6 @@ def send_text_command():
         show_floating_response(response)
     threading.Thread(target=run).start()
 
-
 # === Voice Command ===
 def send_voice_command():
     def run():
@@ -156,7 +161,6 @@ def send_voice_command():
             response = process_command_callback(transcript)
             show_floating_response(response)
     threading.Thread(target=run).start()
-
 
 # === Google Toggle ===
 google_active = [False]
@@ -179,7 +183,6 @@ def toggle_google_mode():
         live_btn.config(text="🟢")
         google_active[0] = False
 
-
 # === Hook ===
 def update_overlay(_, __, status):
     show_floating_response(status)
@@ -187,7 +190,7 @@ def update_overlay(_, __, status):
 def launch_overlay():
     past = get_full_memory_log()
     if past:
-        show_floating_response(past[-1]['content'])
+        root.after(300, lambda: show_floating_response(past[-1]['content']))
     root.mainloop()
 
 on_listen_trigger = []
