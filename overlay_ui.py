@@ -27,22 +27,41 @@ root.attributes("-topmost", True)
 root.attributes("-alpha", 0.96)
 root.overrideredirect(True)
 
-# === Floating Popup Slots (✅ KEEPING YOUR NEW SYSTEM) ===
+# === Popup State ===
 drag = {"x": 0, "y": 0}
 fixed_popups = [None, None, None]
 popup_index = 0
+minimized_popups = []
 
+# === Restore Bar UI ===
+taskbar_frame = tk.Frame(root, bg="#1f1f1f")
+taskbar_frame.pack(fill="x", pady=(0, 6))
+
+def render_minimized_bar():
+    for widget in taskbar_frame.winfo_children():
+        widget.destroy()
+    for idx, (popup, title) in enumerate(minimized_popups):
+        def restore(p=popup, i=idx):
+            p.deiconify()
+            minimized_popups.pop(i)
+            render_minimized_bar()
+        btn = tk.Button(taskbar_frame, text=f"🪟 {title}", command=restore,
+                        font=("Segoe UI", 9), bg="#333", fg="#fff",
+                        relief="flat", padx=6, pady=2)
+        btn.pack(side="left", padx=4)
+
+# === Floating Response Popup ===
 def show_floating_response(text):
     global popup_index, fixed_popups
 
-    col = popup_index % 3
-    row = popup_index // 3
-
-    content_length = len(text)
-    base_height = 120 + (content_length // 5)
-    max_height = 400
+    line_count = text.count('\n') + 1
+    line_height = 55
+    base_height = 100 + (line_count * line_height)
+    max_height = 900
     height = min(base_height, max_height)
 
+    col = popup_index % 3
+    row = popup_index // 3
     px = root.winfo_x() + 420 + (col * 460)
     py = root.winfo_y() + (row * 260)
 
@@ -53,18 +72,42 @@ def show_floating_response(text):
     popup.overrideredirect(True)
     popup.attributes("-topmost", True)
     popup.geometry(f"420x{height}+{px}+{py}")
-    popup.configure(bg="#1a1a1a")
+    popup.configure(bg="#2b2b2b")
 
-    outer = tk.Frame(popup, bg="#2b2b2b", bd=0, highlightthickness=0, relief="flat")
-    outer.pack(expand=True, fill="both", padx=10, pady=10)
+    outer = tk.Frame(popup, bg="#2b2b2b", bd=0, highlightthickness=0)
+    outer.pack(expand=True, fill="both", padx=0, pady=0)
 
-    header = tk.Frame(outer, bg="#2b2b2b")
-    header.pack(fill="x")
-    close_btn = tk.Button(header, text="✖", command=popup.destroy,
-                          font=("Segoe UI", 9), bg="#2b2b2b", fg="red",
+    # === Title Bar ===
+    titlebar = tk.Frame(outer, bg="#202020", height=28)
+    titlebar.pack(fill="x", side="top")
+
+    title = tk.Label(titlebar, text="🪟 Friday Message", bg="#202020", fg="#FFFFFF",
+                     font=("Segoe UI", 9, "bold"))
+    title.pack(side="left", padx=8)
+
+    def minimize_popup():
+        minimized_popups.append((popup, "Friday Message"))
+        popup.withdraw()
+        render_minimized_bar()
+
+    btn_minimize = tk.Button(titlebar, text="—", font=("Segoe UI", 9),
+                             command=minimize_popup, bg="#202020", fg="white",
+                             relief="flat", bd=0)
+    btn_minimize.pack(side="right", padx=(4, 2))
+
+    btn_close = tk.Button(titlebar, text="✖", font=("Segoe UI", 9),
+                          command=popup.destroy, bg="#202020", fg="red",
                           relief="flat", bd=0)
-    close_btn.pack(side="right", padx=4, pady=2)
+    btn_close.pack(side="right", padx=(2, 8))
 
+    def popup_drag_start(e): popup._drag_offset = (e.x, e.y)
+    def popup_drag_move(e):
+        dx, dy = popup._drag_offset
+        popup.geometry(f"+{e.x_root - dx}+{e.y_root - dy}")
+    titlebar.bind("<Button-1>", popup_drag_start)
+    titlebar.bind("<B1-Motion>", popup_drag_move)
+
+    # === Scrollable Canvas ===
     canvas = tk.Canvas(outer, bg="#2b2b2b", highlightthickness=0)
     canvas.pack(side="left", fill="both", expand=True)
 
