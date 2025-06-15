@@ -40,15 +40,27 @@ taskbar_frame.pack(fill="x", pady=(0, 6))
 def render_minimized_bar():
     for widget in taskbar_frame.winfo_children():
         widget.destroy()
+
+    still_valid = []
     for idx, (popup, title) in enumerate(minimized_popups):
+        if not popup.winfo_exists():
+            continue
         def restore(p=popup, i=idx):
-            p.deiconify()
-            minimized_popups.pop(i)
+            try:
+                p.deiconify()
+            except:
+                pass
+            if i < len(minimized_popups):
+                minimized_popups.pop(i)
             render_minimized_bar()
-        btn = tk.Button(taskbar_frame, text=f"🪟 {title}", command=restore,
+
+        btn = tk.Button(taskbar_frame, text=f"🪡 {title}", command=restore,
                         font=("Segoe UI", 9), bg="#333", fg="#fff",
                         relief="flat", padx=6, pady=2)
         btn.pack(side="left", padx=4)
+        still_valid.append((popup, title))
+
+    minimized_popups[:] = still_valid
 
 # === Floating Response Popup ===
 def show_floating_response(text):
@@ -66,7 +78,10 @@ def show_floating_response(text):
     py = root.winfo_y() + (row * 260)
 
     if fixed_popups[col]:
-        fixed_popups[col]['win'].destroy()
+        old_win = fixed_popups[col]['win']
+        minimized_popups[:] = [(p, t) for (p, t) in minimized_popups if p != old_win]
+        old_win.destroy()
+        render_minimized_bar()
 
     popup = tk.Toplevel(root)
     popup.overrideredirect(True)
@@ -77,11 +92,10 @@ def show_floating_response(text):
     outer = tk.Frame(popup, bg="#2b2b2b", bd=0, highlightthickness=0)
     outer.pack(expand=True, fill="both", padx=0, pady=0)
 
-    # === Title Bar ===
     titlebar = tk.Frame(outer, bg="#202020", height=28)
     titlebar.pack(fill="x", side="top")
 
-    title = tk.Label(titlebar, text="🪟 Friday Message", bg="#202020", fg="#FFFFFF",
+    title = tk.Label(titlebar, text="🪡 Friday Message", bg="#202020", fg="#FFFFFF",
                      font=("Segoe UI", 9, "bold"))
     title.pack(side="left", padx=8)
 
@@ -107,15 +121,13 @@ def show_floating_response(text):
     titlebar.bind("<Button-1>", popup_drag_start)
     titlebar.bind("<B1-Motion>", popup_drag_move)
 
-    # === Scrollable Canvas ===
     canvas = tk.Canvas(outer, bg="#2b2b2b", highlightthickness=0)
     canvas.pack(side="left", fill="both", expand=True)
 
     frame = tk.Frame(canvas, bg="#2b2b2b")
     canvas.create_window((0, 0), window=frame, anchor='nw')
 
-    def on_configure(event):
-        canvas.configure(scrollregion=canvas.bbox("all"))
+    def on_configure(event): canvas.configure(scrollregion=canvas.bbox("all"))
     frame.bind("<Configure>", on_configure)
 
     def bind_scroll():
@@ -133,8 +145,7 @@ def show_floating_response(text):
     popup_index = (popup_index + 1) % 3
 
 # === Dragging Sync ===
-def start_drag(e):
-    drag["x"], drag["y"] = e.x, e.y
+def start_drag(e): drag["x"], drag["y"] = e.x, e.y
 
 def do_drag(e):
     dx, dy = e.x - drag["x"], e.y - drag["y"]
@@ -148,32 +159,25 @@ def do_drag(e):
             py = y + (row * 260)
             entry['win'].geometry(f"420x{entry['height']}+{px}+{py}")
 
-# === Header ===
-header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"),
-                  bg="#1f1f1f", fg="#00FFAA")
+# === UI Controls ===
+header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"), bg="#1f1f1f", fg="#00FFAA")
 header.pack(pady=(10, 5))
 header.bind("<Button-1>", start_drag)
 header.bind("<B1-Motion>", do_drag)
 
-# === Model Selector ===
 model_var = tk.StringVar(value="Auto")
 model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
                               values=["Auto", "GPT-4", "Local (Mistral)"])
 model_selector.pack(pady=(0, 10))
 model_selector.configure(width=20)
 
-# === Input Field ===
-input_text = tk.Entry(root, font=("Segoe UI", 11), bg="#2d2d2d", fg="#FFFFFF",
-                      insertbackground='white')
+input_text = tk.Entry(root, font=("Segoe UI", 11), bg="#2d2d2d", fg="#FFFFFF", insertbackground='white')
 input_text.pack(padx=20, pady=(0, 10), fill="x")
 input_text.bind("<Return>", lambda e: send_text_command())
 
-# === Output Text Area ===
-output_text = tk.Text(root, height=6, font=("Segoe UI", 11), bg="#1f1f1f",
-                      fg="#FFFFFF", wrap="word", state="disabled")
+output_text = tk.Text(root, height=6, font=("Segoe UI", 11), bg="#1f1f1f", fg="#FFFFFF", wrap="word", state="disabled")
 output_text.pack(padx=20, pady=(0, 10), fill="both")
 
-# === Buttons ===
 btn_frame = tk.Frame(root, bg="#1f1f1f")
 btn_frame.pack(pady=(0, 10))
 
@@ -187,8 +191,7 @@ live_btn = tk.Button(btn_frame, text="🟢 Google STT", command=lambda: toggle_g
                      font=("Segoe UI", 10), bg="#444", fg="#FFF", width=14)
 live_btn.grid(row=0, column=2, padx=10)
 
-tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 10),
-          bg="#aa3333", fg="white").pack(side="bottom", pady=5)
+tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 10), bg="#aa3333", fg="white").pack(side="bottom", pady=5)
 
 # === Command Handlers ===
 def send_text_command():
@@ -239,10 +242,8 @@ def toggle_google_mode():
         live_btn.config(text="🟢 Google STT")
         google_active[0] = False
 
-# === Hook Functions ===
-def update_overlay(_, __, status):
-    show_floating_response(status)
-
+# === Hooks ===
+def update_overlay(_, __, status): show_floating_response(status)
 def launch_overlay():
     past = get_full_memory_log()
     if past:
