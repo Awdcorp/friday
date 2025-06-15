@@ -27,6 +27,50 @@ root.attributes("-topmost", True)
 root.attributes("-alpha", 0.96)
 root.overrideredirect(True)
 
+main_minimized = [False]  # Track minimize state
+
+# === Title Bar Buttons for Main Window ===
+titlebar_frame = tk.Frame(root, bg="#1f1f1f")
+titlebar_frame.place(relx=1.0, x=-2, y=2, anchor="ne")
+
+def minimize_main():
+    main_minimized[0] = True
+    for widget in root.winfo_children():
+        if widget not in [titlebar_frame] and widget.winfo_manager() == "pack":
+            widget.pack_forget()
+    root.geometry("400x40+50+200")  # Shrink window height to show only title
+
+def restore_main():
+    if main_minimized[0]:
+        header.pack(pady=(10, 5))
+        input_text.pack(padx=20, pady=(0, 10), fill="x")
+        output_text.pack(padx=20, pady=(0, 10), fill="both")
+        btn_frame.pack(pady=(0, 10))
+        model_selector.pack(pady=(0, 10))
+        close_btn.pack(side="bottom", pady=5)
+        taskbar_frame.pack(fill="x", pady=(0, 6))
+        root.geometry("400x350+50+200")  # Restore original size
+        main_minimized[0] = False
+
+def toggle_main_min():
+    if main_minimized[0]:
+        restore_main()
+    else:
+        minimize_main()
+
+btn_main_min = tk.Button(titlebar_frame, text="—", font=("Segoe UI", 9),
+                         command=toggle_main_min, bg="#1f1f1f", fg="white",
+                         relief="flat", bd=0)
+btn_main_min.pack(side="right", padx=2)
+
+def close_main():
+    root.destroy()
+
+btn_main_close = tk.Button(titlebar_frame, text="✖", font=("Segoe UI", 9),
+                           command=close_main, bg="#1f1f1f", fg="red",
+                           relief="flat", bd=0)
+btn_main_close.pack(side="right", padx=2)
+
 # === Popup State ===
 drag = {"x": 0, "y": 0}
 fixed_popups = [None, None, None]
@@ -51,16 +95,66 @@ def render_minimized_bar():
             except:
                 pass
             if i < len(minimized_popups):
-                minimized_popups.pop(i)
+                del minimized_popups[i]
             render_minimized_bar()
 
-        btn = tk.Button(taskbar_frame, text=f"🪡 {title}", command=restore,
+        btn = tk.Button(taskbar_frame, text=f"🪱 {title}", command=restore,
                         font=("Segoe UI", 9), bg="#333", fg="#fff",
                         relief="flat", padx=6, pady=2)
         btn.pack(side="left", padx=4)
         still_valid.append((popup, title))
 
     minimized_popups[:] = still_valid
+
+# === Dragging Sync ===
+def start_drag(e): drag["x"], drag["y"] = e.x, e.y
+
+def do_drag(e):
+    dx, dy = e.x - drag["x"], e.y - drag["y"]
+    x, y = root.winfo_x() + dx, root.winfo_y() + dy
+    root.geometry(f"+{x}+{y}")
+    for idx, entry in enumerate(fixed_popups):
+        if entry:
+            col = idx % 3
+            row = idx // 3
+            px = x + 420 + (col * 460)
+            py = y + (row * 260)
+            entry['win'].geometry(f"420x{entry['height']}+{px}+{py}")
+
+# === UI Controls ===
+header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"), bg="#1f1f1f", fg="#00FFAA")
+header.pack(pady=(10, 5))
+header.bind("<Button-1>", start_drag)
+header.bind("<B1-Motion>", do_drag)
+
+input_text = tk.Entry(root, font=("Segoe UI", 11), bg="#2d2d2d", fg="#FFFFFF", insertbackground='white')
+input_text.pack(padx=20, pady=(0, 10), fill="x")
+input_text.bind("<Return>", lambda e: send_text_command())
+
+output_text = tk.Text(root, height=6, font=("Segoe UI", 11), bg="#1f1f1f", fg="#FFFFFF", wrap="word", state="disabled")
+output_text.pack(padx=20, pady=(0, 10), fill="both")
+
+btn_frame = tk.Frame(root, bg="#1f1f1f")
+btn_frame.pack(pady=(0, 10))
+
+tk.Button(btn_frame, text="Send", command=lambda: send_text_command(), font=("Segoe UI", 10),
+          bg="#444", fg="#FFF", width=10).grid(row=0, column=0, padx=10)
+
+tk.Button(btn_frame, text="🎤 Listen", command=lambda: send_voice_command(), font=("Segoe UI", 10),
+          bg="#444", fg="#FFF", width=10).grid(row=0, column=1, padx=10)
+
+live_btn = tk.Button(btn_frame, text="🟢 Google STT", command=lambda: toggle_google_mode(),
+                     font=("Segoe UI", 10), bg="#444", fg="#FFF", width=14)
+live_btn.grid(row=0, column=2, padx=10)
+
+model_var = tk.StringVar(value="Auto")
+model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
+                              values=["Auto", "GPT-4", "Local (Mistral)"])
+model_selector.pack(pady=(0, 10))
+model_selector.configure(width=20)
+
+close_btn = tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 10), bg="#aa3333", fg="white")
+close_btn.pack(side="bottom", pady=5)
 
 # === Floating Response Popup ===
 def show_floating_response(text):
@@ -95,8 +189,7 @@ def show_floating_response(text):
     titlebar = tk.Frame(outer, bg="#202020", height=28)
     titlebar.pack(fill="x", side="top")
 
-    title = tk.Label(titlebar, text="🪡 Friday Message", bg="#202020", fg="#FFFFFF",
-                     font=("Segoe UI", 9, "bold"))
+    title = tk.Label(titlebar, text="🪡 Friday Message", bg="#202020", fg="#FFFFFF", font=("Segoe UI", 9, "bold"))
     title.pack(side="left", padx=8)
 
     def minimize_popup():
@@ -104,14 +197,12 @@ def show_floating_response(text):
         popup.withdraw()
         render_minimized_bar()
 
-    btn_minimize = tk.Button(titlebar, text="—", font=("Segoe UI", 9),
-                             command=minimize_popup, bg="#202020", fg="white",
-                             relief="flat", bd=0)
+    btn_minimize = tk.Button(titlebar, text="—", font=("Segoe UI", 9), command=minimize_popup,
+                             bg="#202020", fg="white", relief="flat", bd=0)
     btn_minimize.pack(side="right", padx=(4, 2))
 
-    btn_close = tk.Button(titlebar, text="✖", font=("Segoe UI", 9),
-                          command=popup.destroy, bg="#202020", fg="red",
-                          relief="flat", bd=0)
+    btn_close = tk.Button(titlebar, text="✖", font=("Segoe UI", 9), command=popup.destroy,
+                          bg="#202020", fg="red", relief="flat", bd=0)
     btn_close.pack(side="right", padx=(2, 8))
 
     def popup_drag_start(e): popup._drag_offset = (e.x, e.y)
@@ -138,60 +229,11 @@ def show_floating_response(text):
     bind_scroll()
 
     lbl = tk.Label(frame, text=text, font=("Segoe UI", 10), fg="#DDDDDD", bg="#2b2b2b",
-                   wraplength=380, justify="left", anchor="nw")
-    lbl.pack(anchor="w", padx=8, pady=6, expand=True, fill="both")
+                   wraplength=400, justify="left", anchor="nw")
+    lbl.pack(padx=(8, 0), pady=6, anchor="nw", fill="x")
 
     fixed_popups[col] = {"win": popup, "col": col, "row": row, "height": height}
     popup_index = (popup_index + 1) % 3
-
-# === Dragging Sync ===
-def start_drag(e): drag["x"], drag["y"] = e.x, e.y
-
-def do_drag(e):
-    dx, dy = e.x - drag["x"], e.y - drag["y"]
-    x, y = root.winfo_x() + dx, root.winfo_y() + dy
-    root.geometry(f"+{x}+{y}")
-    for idx, entry in enumerate(fixed_popups):
-        if entry:
-            col = idx % 3
-            row = idx // 3
-            px = x + 420 + (col * 460)
-            py = y + (row * 260)
-            entry['win'].geometry(f"420x{entry['height']}+{px}+{py}")
-
-# === UI Controls ===
-header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"), bg="#1f1f1f", fg="#00FFAA")
-header.pack(pady=(10, 5))
-header.bind("<Button-1>", start_drag)
-header.bind("<B1-Motion>", do_drag)
-
-model_var = tk.StringVar(value="Auto")
-model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
-                              values=["Auto", "GPT-4", "Local (Mistral)"])
-model_selector.pack(pady=(0, 10))
-model_selector.configure(width=20)
-
-input_text = tk.Entry(root, font=("Segoe UI", 11), bg="#2d2d2d", fg="#FFFFFF", insertbackground='white')
-input_text.pack(padx=20, pady=(0, 10), fill="x")
-input_text.bind("<Return>", lambda e: send_text_command())
-
-output_text = tk.Text(root, height=6, font=("Segoe UI", 11), bg="#1f1f1f", fg="#FFFFFF", wrap="word", state="disabled")
-output_text.pack(padx=20, pady=(0, 10), fill="both")
-
-btn_frame = tk.Frame(root, bg="#1f1f1f")
-btn_frame.pack(pady=(0, 10))
-
-tk.Button(btn_frame, text="Send", command=lambda: send_text_command(), font=("Segoe UI", 10),
-          bg="#444", fg="#FFF", width=10).grid(row=0, column=0, padx=10)
-
-tk.Button(btn_frame, text="🎤 Listen", command=lambda: send_voice_command(), font=("Segoe UI", 10),
-          bg="#444", fg="#FFF", width=10).grid(row=0, column=1, padx=10)
-
-live_btn = tk.Button(btn_frame, text="🟢 Google STT", command=lambda: toggle_google_mode(),
-                     font=("Segoe UI", 10), bg="#444", fg="#FFF", width=14)
-live_btn.grid(row=0, column=2, padx=10)
-
-tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 10), bg="#aa3333", fg="white").pack(side="bottom", pady=5)
 
 # === Command Handlers ===
 def send_text_command():
