@@ -131,6 +131,7 @@ def restore_main():
         output_text.pack(padx=20, pady=(0, 10), fill="both")
         btn_frame.pack(pady=(0, 10))
         model_selector.pack(pady=(0, 10))
+        mode_btn.pack(pady=(0, 10))
         alpha_label.pack(pady=(0, 2))
         alpha_slider.pack(pady=(0, 10))
 
@@ -181,11 +182,23 @@ live_btn = tk.Button(btn_frame, text="🟢 Google STT", command=lambda: toggle_g
                      font=("Segoe UI", 10), bg="#444", fg="#FFF", width=14)
 live_btn.grid(row=0, column=2, padx=10)
 
-model_var = tk.StringVar(value="Auto")
+model_var = tk.StringVar(value="GPT-4")
 model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
-                              values=["Auto", "GPT-4", "Local (Mistral)"])
+                              values=["GPT-4", "Auto", "Local (Mistral)"])
 model_selector.pack(pady=(0, 10))
 model_selector.configure(width=20)
+
+# === Mode Toggle ===
+mode_var = tk.StringVar(value="Chat")  # Default is Chat mode
+
+def toggle_mode():
+    current = mode_var.get()
+    mode_var.set("Command" if current == "Chat" else "Chat")
+    mode_btn.config(text=f"🧠 Mode: {mode_var.get()}")
+
+mode_btn = tk.Button(root, text=f"🧠 Mode: {mode_var.get()}", command=toggle_mode,
+                     font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
+mode_btn.pack(pady=(0, 10))
 
 # === Transparency Slider ===
 def on_alpha_change(value):
@@ -295,7 +308,7 @@ def show_floating_response(text):
         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
     bind_scroll()
 
-    lbl = tk.Label(frame, text=text, font=("Segoe UI", 10), fg="#DDDDDD", bg="#2b2b2b",
+    lbl = tk.Label(frame, text=text, font=("Segoe UI", 12), fg="#DDDDDD", bg="#2b2b2b",
                    wraplength=popup_width - 20, justify="left", anchor="nw")
     lbl.pack(padx=(8, 0), pady=6, anchor="nw", fill="x")
 

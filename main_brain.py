@@ -1,7 +1,7 @@
 from memory_manager import load_memory
 load_memory()
 
-from overlay_ui import launch_overlay, update_overlay, on_listen_trigger, on_send_trigger, ask_with_model
+from overlay_ui import launch_overlay, update_overlay, on_listen_trigger, on_send_trigger, ask_with_model, mode_var
 import overlay_ui
 import voice_listener_vad
 from task_router import route_command
@@ -11,14 +11,20 @@ from voice_listener_realtime import start_continuous_mode, stop_continuous_mode 
 # ✅ Register overlay update callback for legacy VAD
 voice_listener_vad.update_overlay_callback = update_overlay
 
-# ✅ Main shared command handler (respects selected model)
+# ✅ Main shared command handler (respects selected mode: Chat vs Command)
 def process_command(user_input):
     print(f"\n📤 Processing: {user_input}")
-    routed = route_command(user_input)
-    if routed:
-        print("✅ Routed to internal handler")
-        return f"✅ Actioned: {user_input}"
-    else:
+    current_mode = mode_var.get()  # ✅ Read current mode from overlay
+
+    if current_mode == "Command":
+        routed = route_command(user_input)
+        if routed:
+            print("✅ Routed to internal handler")
+            return f"✅ Actioned: {user_input}"
+        else:
+            print("⚠️ Not a valid command.")
+            return "⚠️ No valid command found."
+    else:  # Chat Mode
         reply = ask_with_model(user_input)
         return reply if reply.startswith("🤖") else f"🤖 {reply}"
 
