@@ -28,85 +28,15 @@ root.attributes("-alpha", 0.96)
 root.overrideredirect(True)
 
 main_minimized = [False]  # Track minimize state
-
-# === Title Bar Buttons for Main Window ===
-titlebar_frame = tk.Frame(root, bg="#1f1f1f")
-titlebar_frame.place(relx=1.0, x=-2, y=2, anchor="ne")
-
-def minimize_main():
-    main_minimized[0] = True
-    for widget in root.winfo_children():
-        if widget not in [titlebar_frame] and widget.winfo_manager() == "pack":
-            widget.pack_forget()
-    root.geometry("400x40+50+200")  # Shrink window height to show only title
-
-def restore_main():
-    if main_minimized[0]:
-        header.pack(pady=(10, 5))
-        input_text.pack(padx=20, pady=(0, 10), fill="x")
-        output_text.pack(padx=20, pady=(0, 10), fill="both")
-        btn_frame.pack(pady=(0, 10))
-        model_selector.pack(pady=(0, 10))
-        close_btn.pack(side="bottom", pady=5)
-        taskbar_frame.pack(fill="x", pady=(0, 6))
-        root.geometry("400x350+50+200")  # Restore original size
-        main_minimized[0] = False
-
-def toggle_main_min():
-    if main_minimized[0]:
-        restore_main()
-    else:
-        minimize_main()
-
-btn_main_min = tk.Button(titlebar_frame, text="—", font=("Segoe UI", 9),
-                         command=toggle_main_min, bg="#1f1f1f", fg="white",
-                         relief="flat", bd=0)
-btn_main_min.pack(side="right", padx=2)
-
-def close_main():
-    root.destroy()
-
-btn_main_close = tk.Button(titlebar_frame, text="✖", font=("Segoe UI", 9),
-                           command=close_main, bg="#1f1f1f", fg="red",
-                           relief="flat", bd=0)
-btn_main_close.pack(side="right", padx=2)
-
-# === Popup State ===
 drag = {"x": 0, "y": 0}
 fixed_popups = [None, None, None]
 popup_index = 0
 minimized_popups = []
 
-# === Restore Bar UI ===
-taskbar_frame = tk.Frame(root, bg="#1f1f1f")
-taskbar_frame.pack(fill="x", pady=(0, 6))
+# === Title Bar Frame (Draggable with Buttons) ===
+titlebar_frame = tk.Frame(root, bg="#1f1f1f", height=30)
+titlebar_frame.pack(fill="x", side="top")
 
-def render_minimized_bar():
-    for widget in taskbar_frame.winfo_children():
-        widget.destroy()
-
-    still_valid = []
-    for idx, (popup, title) in enumerate(minimized_popups):
-        if not popup.winfo_exists():
-            continue
-        def restore(p=popup, i=idx):
-            try:
-                p.deiconify()
-            except:
-                pass
-            if i < len(minimized_popups):
-                del minimized_popups[i]
-            render_minimized_bar()
-
-        btn = tk.Button(taskbar_frame, text=f"🪱 {title}", command=restore,
-                        font=("Segoe UI", 9), bg="#333", fg="#fff",
-                        relief="flat", padx=6, pady=2)
-        btn.pack(side="left", padx=4)
-        still_valid.append((popup, title))
-
-    minimized_popups[:] = still_valid
-
-# === Dragging Sync ===
 def start_drag(e): drag["x"], drag["y"] = e.x, e.y
 
 def do_drag(e):
@@ -121,7 +51,79 @@ def do_drag(e):
             py = y + (row * 260)
             entry['win'].geometry(f"420x{entry['height']}+{px}+{py}")
 
-# === UI Controls ===
+titlebar_frame.bind("<Button-1>", start_drag)
+titlebar_frame.bind("<B1-Motion>", do_drag)
+
+btn_main_close = tk.Button(titlebar_frame, text="✖", font=("Segoe UI", 9),
+                           command=root.destroy, bg="#1f1f1f", fg="red",
+                           relief="flat", bd=0)
+btn_main_close.pack(side="right", padx=4, pady=2)
+
+btn_main_min = tk.Button(titlebar_frame, text="—", font=("Segoe UI", 9),
+                         command=lambda: restore_main() if main_minimized[0] else minimize_main(),
+                         bg="#1f1f1f", fg="white", relief="flat", bd=0)
+btn_main_min.pack(side="right", padx=2, pady=2)
+
+# === Taskbar ===
+taskbar_frame = tk.Frame(root, bg="#2a2a2a", height=28)
+taskbar_frame.pack(fill="x", side="top")
+
+def render_minimized_bar():
+    for widget in taskbar_frame.winfo_children():
+        widget.destroy()
+
+    tk.Label(taskbar_frame, text="Minimized:", bg="#2a2a2a", fg="white").pack(side="left", padx=6)
+
+    still_valid = []
+    for idx, (popup, title) in enumerate(minimized_popups):
+        if not popup.winfo_exists(): continue
+        def restore(p=popup, i=idx):
+            try: p.deiconify()
+            except: pass
+            if i < len(minimized_popups):
+                del minimized_popups[i]
+            render_minimized_bar()
+
+        btn = tk.Button(taskbar_frame, text=f"🪡 {title}", command=restore,
+                        font=("Segoe UI", 9), bg="#333", fg="#fff",
+                        relief="flat", padx=6, pady=2)
+        btn.pack(side="left", padx=4)
+        still_valid.append((popup, title))
+
+    minimized_popups[:] = still_valid
+
+# === Minimize/Restore Logic ===
+def minimize_main():
+    main_minimized[0] = True
+    for widget in root.winfo_children():
+        if widget not in [titlebar_frame, taskbar_frame] and widget.winfo_manager() == "pack":
+            widget.pack_forget()
+    root.geometry("400x40+50+200")
+    for entry in fixed_popups:
+        if entry and entry['win'].winfo_exists():
+            entry['win'].withdraw()
+            if all(entry['win'] != p for p, _ in minimized_popups):
+                minimized_popups.append((entry['win'], "Friday Message"))
+    render_minimized_bar()
+
+def restore_main():
+    if main_minimized[0]:
+        header.pack(pady=(10, 5))
+        input_text.pack(padx=20, pady=(0, 10), fill="x")
+        output_text.pack(padx=20, pady=(0, 10), fill="both")
+        btn_frame.pack(pady=(0, 10))
+        model_selector.pack(pady=(0, 10))
+        close_btn.pack(side="bottom", pady=5)
+        taskbar_frame.pack(fill="x", side="top")
+        root.geometry("400x350+50+200")
+        main_minimized[0] = False
+        for popup, _ in minimized_popups:
+            if popup.winfo_exists():
+                popup.deiconify()
+        minimized_popups.clear()
+        render_minimized_bar()
+
+# === UI Content ===
 header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"), bg="#1f1f1f", fg="#00FFAA")
 header.pack(pady=(10, 5))
 header.bind("<Button-1>", start_drag)
