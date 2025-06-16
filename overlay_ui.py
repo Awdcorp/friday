@@ -32,6 +32,7 @@ drag = {"x": 0, "y": 0}
 fixed_popups = [None, None, None]
 popup_index = 0
 minimized_popups = []
+last_main_position = [None]
 
 # === Popup Layout Constants ===
 POPUP_WIDTH = 420
@@ -113,7 +114,8 @@ def minimize_main():
     for widget in root.winfo_children():
         if widget not in [titlebar_frame, taskbar_frame] and widget.winfo_manager() == "pack":
             widget.pack_forget()
-    root.geometry("400x64+50+200")
+    last_main_position[0] = (root.winfo_x(), root.winfo_y())
+    root.geometry(f"400x64+{last_main_position[0][0]}+{last_main_position[0][1]}")
     for entry in fixed_popups:
         if entry and entry['win'].winfo_exists():
             entry['win'].withdraw()
@@ -129,7 +131,10 @@ def restore_main():
         btn_frame.pack(pady=(0, 10))
         model_selector.pack(pady=(0, 10))
         close_btn.pack(side="bottom", pady=5)
-        root.geometry("400x350+50+200")
+        if last_main_position[0]:
+            root.geometry(f"400x350+{last_main_position[0][0]}+{last_main_position[0][1]}")
+        else:
+            root.geometry("400x350+50+200")  # fallback
         main_minimized[0] = False
         for popup, _ in minimized_popups:
             if popup.winfo_exists():
