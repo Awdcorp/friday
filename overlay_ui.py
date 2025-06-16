@@ -20,15 +20,15 @@ process_command_callback = ask_with_model
 
 # === Main Window ===
 root = tk.Tk()
-root.title("Friday Assistant")
-root.geometry("400x350+50+200")
-root.configure(bg='#1f1f1f')
+root.title("Friday Assistant")  # 🖼️ Change app window title here
+root.geometry("400x450+100+500")  # 📏 Change window size & initial position here
+root.configure(bg='#1f1f1f')  # 🎨 Main background color of the app
 root.attributes("-topmost", True)
-root.attributes("-alpha", 0.96)
-root.overrideredirect(True)
+root.attributes("-alpha", 0.8)  # 🪟 Window transparency (0.0 to 1.0)
+root.overrideredirect(True)  # 🖼️ Remove window decorations (title bar, borders)
 
 main_minimized = [False]  # Track minimize state
-drag = {"x": 0, "y": 0}
+drag = {"x": 0, "y": 0} 
 fixed_popups = [None, None, None]
 popup_index = 0
 minimized_popups = []
@@ -39,9 +39,9 @@ POPUP_WIDTH = 420
 POPUP_HEIGHT = 260
 START_X = 100
 START_Y = 100
-COL_SPACING = 20
+COL_SPACING = 100    
 ROW_SPACING = 20
-MAX_COLS = 3
+MAX_COLS = 3 # Controls how many floating popups are allowed side by side
 
 # === Title Bar Frame (Draggable with Buttons) ===
 titlebar_frame = tk.Frame(root, bg="#1f1f1f", height=30)
@@ -120,7 +120,8 @@ def minimize_main():
         if entry and entry['win'].winfo_exists():
             entry['win'].withdraw()
             if all(entry['win'] != p for p, _ in minimized_popups):
-                minimized_popups.append((entry['win'], "Friday Message"))
+                title = entry.get("title", "Friday Message")  # 🆕 Get stored dynamic title
+                minimized_popups.append((entry['win'], title))
     render_minimized_bar()
 
 def restore_main():
@@ -130,11 +131,13 @@ def restore_main():
         output_text.pack(padx=20, pady=(0, 10), fill="both")
         btn_frame.pack(pady=(0, 10))
         model_selector.pack(pady=(0, 10))
-        close_btn.pack(side="bottom", pady=5)
+        alpha_label.pack(pady=(0, 2))
+        alpha_slider.pack(pady=(0, 10))
+
         if last_main_position[0]:
-            root.geometry(f"400x350+{last_main_position[0][0]}+{last_main_position[0][1]}")
+            root.geometry(f"400x450+{last_main_position[0][0]}+{last_main_position[0][1]}")
         else:
-            root.geometry("400x350+50+200")  # fallback
+            root.geometry("400x450+100+500")  # fallback
         main_minimized[0] = False
         for popup, _ in minimized_popups:
             if popup.winfo_exists():
@@ -153,7 +156,7 @@ def on_popup_close(win):
     win.destroy()
 
 # === UI Content ===
-header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"), bg="#1f1f1f", fg="#00FFAA")
+header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"), bg="#1f1f1f", fg="#CED6D3")
 header.pack(pady=(10, 5))
 header.bind("<Button-1>", start_drag)
 header.bind("<B1-Motion>", do_drag)
@@ -184,8 +187,22 @@ model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
 model_selector.pack(pady=(0, 10))
 model_selector.configure(width=20)
 
-close_btn = tk.Button(root, text="✖", command=root.destroy, font=("Segoe UI", 10), bg="#aa3333", fg="white")
-close_btn.pack(side="bottom", pady=5)
+# === Transparency Slider ===
+def on_alpha_change(value):
+    alpha = float(value)
+    root.attributes("-alpha", alpha)
+    for entry in fixed_popups:
+        if entry and entry["win"].winfo_exists():
+            entry["win"].attributes("-alpha", alpha)
+
+alpha_label = tk.Label(root, text="Set Transparency", bg="#1f1f1f", fg="#FFFFFF", font=("Segoe UI", 9))
+alpha_label.pack(pady=(0, 2))
+
+alpha_slider = tk.Scale(root, from_=0.2, to=1.0, resolution=0.01, orient="horizontal",
+                        length=220, command=on_alpha_change, bg="#1f1f1f", fg="#FFFFFF",
+                        troughcolor="#444", highlightthickness=0)
+alpha_slider.set(root.attributes("-alpha"))
+alpha_slider.pack(pady=(0, 10))
 
 # === Floating Response Popup ===
 def show_floating_response(text):
@@ -224,15 +241,17 @@ def show_floating_response(text):
     popup = tk.Toplevel(root)
     popup.overrideredirect(True)
     popup.attributes("-topmost", True)
+    popup.attributes("-alpha", root.attributes("-alpha"))  # Inherit transparency
     popup.geometry(f"{popup_width}x{popup_height}+{px}+{py}")
-    popup.configure(bg="#2b2b2b", highlightthickness=1, highlightbackground="#444", bd=2)
+    popup.configure(bg="#1f1f1f", highlightthickness=1, highlightbackground="#444", bd=2)
 
     outer = tk.Frame(popup, bg="#2b2b2b", bd=0, highlightthickness=0)
     outer.pack(expand=True, fill="both", padx=0, pady=0)
 
-    title_text = text.strip().splitlines()[0][:7] if text.strip() else "Friday Message"
+    popup_number = popup_index + 1 
+    title_text = f"{popup_number} " + text.strip().splitlines()[0][:7] if text.strip() else "Friday Message"
 
-    titlebar = tk.Frame(outer, bg="#202020", height=28)
+    titlebar = tk.Frame(outer, bg="#202020", height=28)  # Area to show minimized popup buttons
     titlebar.pack(fill="x", side="top")
 
     title = tk.Label(titlebar, text=f"🪡 {title_text}", bg="#202020", fg="#FFFFFF", font=("Segoe UI", 9, "bold"))
@@ -244,13 +263,13 @@ def show_floating_response(text):
         popup.withdraw()
         render_minimized_bar()
 
-    btn_minimize = tk.Button(titlebar, text="—", font=("Segoe UI", 9), command=minimize_popup,
-                             bg="#202020", fg="white", relief="flat", bd=0)
-    btn_minimize.pack(side="right", padx=(4, 2))
-
     btn_close = tk.Button(titlebar, text="✖", font=("Segoe UI", 9), command=lambda: on_popup_close(popup),
                           bg="#202020", fg="red", relief="flat", bd=0)
     btn_close.pack(side="right", padx=(2, 8))
+
+    btn_minimize = tk.Button(titlebar, text="—", font=("Segoe UI", 9), command=minimize_popup,
+                             bg="#202020", fg="white", relief="flat", bd=0)
+    btn_minimize.pack(side="right", padx=(4, 2))
 
     def popup_drag_start(e): popup._drag_offset = (e.x, e.y)
     def popup_drag_move(e):
@@ -302,7 +321,8 @@ def show_floating_response(text):
         "win": popup,
         "col": col,
         "row": row,
-        "height": popup_height
+        "height": popup_height,
+        "title": title_text
     }
 
     popup_index = (popup_index + 1) % MAX_COLS
