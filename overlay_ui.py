@@ -33,6 +33,15 @@ fixed_popups = [None, None, None]
 popup_index = 0
 minimized_popups = []
 
+# === Popup Layout Constants ===
+POPUP_WIDTH = 420
+POPUP_HEIGHT = 260
+START_X = 100
+START_Y = 100
+COL_SPACING = 20
+ROW_SPACING = 20
+MAX_COLS = 3
+
 # === Title Bar Frame (Draggable with Buttons) ===
 titlebar_frame = tk.Frame(root, bg="#1f1f1f", height=30)
 titlebar_frame.pack(fill="x", side="top")
@@ -177,6 +186,7 @@ close_btn.pack(side="bottom", pady=5)
 def show_floating_response(text):
     global popup_index, fixed_popups
 
+    # Estimate popup height based on lines
     line_count = text.count('\n') + 1
     line_height = 55
     base_height = 100 + (line_count * line_height)
@@ -186,17 +196,23 @@ def show_floating_response(text):
     col = popup_index % 3
     row = popup_index // 3
 
-    # ✅ Independent position — based on screen or mouse pointer, not root
-    px = root.winfo_pointerx() + (col * 20)
-    py = root.winfo_pointery() + (row * 20)
+    # Default position (if no existing popup)
+    px = 100 + col * (420 + 20)
+    py = 100 + row * (260 + 20)
 
-    # ✅ Remove old popup in same column (if any)
+    # If reusing an existing popup, get its current position
     if fixed_popups[col]:
         old_win = fixed_popups[col]['win']
+        try:
+            px = old_win.winfo_x()
+            py = old_win.winfo_y()
+        except:
+            pass
         minimized_popups[:] = [(p, t) for (p, t) in minimized_popups if p != old_win]
         old_win.destroy()
         render_minimized_bar()
 
+    # Create new popup
     popup = tk.Toplevel(root)
     popup.overrideredirect(True)
     popup.attributes("-topmost", True)
@@ -256,7 +272,13 @@ def show_floating_response(text):
                    wraplength=400, justify="left", anchor="nw")
     lbl.pack(padx=(8, 0), pady=6, anchor="nw", fill="x")
 
-    fixed_popups[col] = {"win": popup, "col": col, "row": row, "height": height}
+    fixed_popups[col] = {
+        "win": popup,
+        "col": col,
+        "row": row,
+        "height": height
+    }
+
     popup_index = (popup_index + 1) % 3
 
 # === Command Handlers ===
