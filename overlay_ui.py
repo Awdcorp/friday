@@ -43,13 +43,6 @@ def do_drag(e):
     dx, dy = e.x - drag["x"], e.y - drag["y"]
     x, y = root.winfo_x() + dx, root.winfo_y() + dy
     root.geometry(f"+{x}+{y}")
-    for idx, entry in enumerate(fixed_popups):
-        if entry:
-            col = idx % 3
-            row = idx // 3
-            px = x + 420 + (col * 460)
-            py = y + (row * 260)
-            entry['win'].geometry(f"420x{entry['height']}+{px}+{py}")
 
 titlebar_frame.bind("<Button-1>", start_drag)
 titlebar_frame.bind("<B1-Motion>", do_drag)
@@ -68,11 +61,19 @@ btn_main_min.pack(side="right", padx=2, pady=2)
 taskbar_frame = tk.Frame(root, bg="#2a2a2a", height=28)
 taskbar_frame.pack(fill="x", side="top")
 
+def restore_all_minimized():
+    for popup, _ in minimized_popups:
+        if popup.winfo_exists():
+            popup.deiconify()
+    minimized_popups.clear()
+    render_minimized_bar()
+
 def render_minimized_bar():
     for widget in taskbar_frame.winfo_children():
         widget.destroy()
 
-    tk.Label(taskbar_frame, text="Minimized:", bg="#2a2a2a", fg="white").pack(side="left", padx=6)
+    if minimized_popups:
+        tk.Label(taskbar_frame, text="🗂", bg="#2a2a2a", fg="white").pack(side="left", padx=6)
 
     still_valid = []
     for idx, (popup, title) in enumerate(minimized_popups):
@@ -84,11 +85,16 @@ def render_minimized_bar():
                 del minimized_popups[i]
             render_minimized_bar()
 
-        btn = tk.Button(taskbar_frame, text=f"🪡 {title}", command=restore,
+        btn = tk.Button(taskbar_frame, text=f"{title}", command=restore,
                         font=("Segoe UI", 9), bg="#333", fg="#fff",
                         relief="flat", padx=6, pady=2)
         btn.pack(side="left", padx=4)
         still_valid.append((popup, title))
+
+    if minimized_popups:
+        btn_all = tk.Button(taskbar_frame, text="⤴️ Restore All", command=restore_all_minimized,
+                            font=("Segoe UI", 9), bg="#555", fg="#fff", relief="flat", padx=4, pady=2)
+        btn_all.pack(side="right", padx=6)
 
     minimized_popups[:] = still_valid
 
@@ -98,7 +104,7 @@ def minimize_main():
     for widget in root.winfo_children():
         if widget not in [titlebar_frame, taskbar_frame] and widget.winfo_manager() == "pack":
             widget.pack_forget()
-    root.geometry("400x40+50+200")
+    root.geometry("400x64+50+200")
     for entry in fixed_popups:
         if entry and entry['win'].winfo_exists():
             entry['win'].withdraw()
@@ -114,7 +120,6 @@ def restore_main():
         btn_frame.pack(pady=(0, 10))
         model_selector.pack(pady=(0, 10))
         close_btn.pack(side="bottom", pady=5)
-        taskbar_frame.pack(fill="x", side="top")
         root.geometry("400x350+50+200")
         main_minimized[0] = False
         for popup, _ in minimized_popups:
@@ -122,6 +127,16 @@ def restore_main():
                 popup.deiconify()
         minimized_popups.clear()
         render_minimized_bar()
+
+# === Popup Close Cleanup ===
+def on_popup_close(win):
+    for i, entry in enumerate(fixed_popups):
+        if entry and entry['win'] == win:
+            fixed_popups[i] = None
+            break
+    minimized_popups[:] = [(p, t) for (p, t) in minimized_popups if p != win]
+    render_minimized_bar()
+    win.destroy()
 
 # === UI Content ===
 header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"), bg="#1f1f1f", fg="#00FFAA")
@@ -170,9 +185,12 @@ def show_floating_response(text):
 
     col = popup_index % 3
     row = popup_index // 3
-    px = root.winfo_x() + 420 + (col * 460)
-    py = root.winfo_y() + (row * 260)
 
+    # ✅ Independent position — based on screen or mouse pointer, not root
+    px = root.winfo_pointerx() + (col * 20)
+    py = root.winfo_pointery() + (row * 20)
+
+    # ✅ Remove old popup in same column (if any)
     if fixed_popups[col]:
         old_win = fixed_popups[col]['win']
         minimized_popups[:] = [(p, t) for (p, t) in minimized_popups if p != old_win]
@@ -188,14 +206,17 @@ def show_floating_response(text):
     outer = tk.Frame(popup, bg="#2b2b2b", bd=0, highlightthickness=0)
     outer.pack(expand=True, fill="both", padx=0, pady=0)
 
+    title_text = text.strip().splitlines()[0][:7] if text.strip() else "Friday Message"
+
     titlebar = tk.Frame(outer, bg="#202020", height=28)
     titlebar.pack(fill="x", side="top")
 
-    title = tk.Label(titlebar, text="🪡 Friday Message", bg="#202020", fg="#FFFFFF", font=("Segoe UI", 9, "bold"))
+    title = tk.Label(titlebar, text=f"🪡 {title_text}", bg="#202020", fg="#FFFFFF", font=("Segoe UI", 9, "bold"))
     title.pack(side="left", padx=8)
 
     def minimize_popup():
-        minimized_popups.append((popup, "Friday Message"))
+        if all(popup != p for p, _ in minimized_popups):
+            minimized_popups.append((popup, title_text))
         popup.withdraw()
         render_minimized_bar()
 
@@ -203,10 +224,11 @@ def show_floating_response(text):
                              bg="#202020", fg="white", relief="flat", bd=0)
     btn_minimize.pack(side="right", padx=(4, 2))
 
-    btn_close = tk.Button(titlebar, text="✖", font=("Segoe UI", 9), command=popup.destroy,
+    btn_close = tk.Button(titlebar, text="✖", font=("Segoe UI", 9), command=lambda: on_popup_close(popup),
                           bg="#202020", fg="red", relief="flat", bd=0)
     btn_close.pack(side="right", padx=(2, 8))
 
+    # === Make popup draggable on its own ===
     def popup_drag_start(e): popup._drag_offset = (e.x, e.y)
     def popup_drag_move(e):
         dx, dy = popup._drag_offset
