@@ -196,33 +196,36 @@ def show_floating_response(text):
     line_height = 55
     base_height = 100 + (line_count * line_height)
     max_height = 900
-    height = min(base_height, max_height)
+    default_height = min(base_height, max_height)
 
-    col = popup_index % 3
-    row = popup_index // 3
+    col = popup_index % MAX_COLS
+    row = popup_index // MAX_COLS
 
-    # Default position (if no existing popup)
-    px = 100 + col * (420 + 20)
-    py = 100 + row * (260 + 20)
+    # Default placement
+    px = START_X + col * (POPUP_WIDTH + COL_SPACING)
+    py = START_Y + row * (POPUP_HEIGHT + ROW_SPACING)
 
-    # If reusing an existing popup, get its current position
+    # Reuse existing popup position + size
     if fixed_popups[col]:
         old_win = fixed_popups[col]['win']
         try:
             px = old_win.winfo_x()
             py = old_win.winfo_y()
+            popup_width = old_win.winfo_width()
+            popup_height = old_win.winfo_height()
         except:
-            pass
-        minimized_popups[:] = [(p, t) for (p, t) in minimized_popups if p != old_win]
+            popup_width, popup_height = POPUP_WIDTH, default_height
         old_win.destroy()
+        minimized_popups[:] = [(p, t) for (p, t) in minimized_popups if p != old_win]
         render_minimized_bar()
+    else:
+        popup_width, popup_height = POPUP_WIDTH, default_height
 
-    # Create new popup
     popup = tk.Toplevel(root)
     popup.overrideredirect(True)
     popup.attributes("-topmost", True)
-    popup.geometry(f"420x{height}+{px}+{py}")
-    popup.configure(bg="#2b2b2b")
+    popup.geometry(f"{popup_width}x{popup_height}+{px}+{py}")
+    popup.configure(bg="#2b2b2b", highlightthickness=1, highlightbackground="#444", bd=2)
 
     outer = tk.Frame(popup, bg="#2b2b2b", bd=0, highlightthickness=0)
     outer.pack(expand=True, fill="both", padx=0, pady=0)
@@ -249,7 +252,6 @@ def show_floating_response(text):
                           bg="#202020", fg="red", relief="flat", bd=0)
     btn_close.pack(side="right", padx=(2, 8))
 
-    # === Make popup draggable on its own ===
     def popup_drag_start(e): popup._drag_offset = (e.x, e.y)
     def popup_drag_move(e):
         dx, dy = popup._drag_offset
@@ -257,34 +259,53 @@ def show_floating_response(text):
     titlebar.bind("<Button-1>", popup_drag_start)
     titlebar.bind("<B1-Motion>", popup_drag_move)
 
+    # === Scrollable Canvas
     canvas = tk.Canvas(outer, bg="#2b2b2b", highlightthickness=0)
-    canvas.pack(side="left", fill="both", expand=True)
+    canvas.pack(fill="both", expand=True)
 
     frame = tk.Frame(canvas, bg="#2b2b2b")
-    canvas.create_window((0, 0), window=frame, anchor='nw')
+    canvas_window = canvas.create_window((0, 0), window=frame, anchor='nw')
 
     def on_configure(event): canvas.configure(scrollregion=canvas.bbox("all"))
     frame.bind("<Configure>", on_configure)
 
     def bind_scroll():
-        def _on_mousewheel(e): canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+        def _on_mousewheel(e): canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
         canvas.bind("<Enter>", lambda e: bind_scroll())
         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
     bind_scroll()
 
     lbl = tk.Label(frame, text=text, font=("Segoe UI", 10), fg="#DDDDDD", bg="#2b2b2b",
-                   wraplength=400, justify="left", anchor="nw")
+                   wraplength=popup_width - 20, justify="left", anchor="nw")
     lbl.pack(padx=(8, 0), pady=6, anchor="nw", fill="x")
+
+    # === Resize Handle (Bottom-Right)
+    resize_grip = tk.Frame(popup, cursor="bottom_right_corner", bg="#444", width=10, height=10)
+    resize_grip.place(relx=1.0, rely=1.0, anchor="se")
+
+    def start_resize(e):
+        popup._resize_start = (e.x_root, e.y_root, popup.winfo_width(), popup.winfo_height())
+
+    def do_resize(e):
+        x0, y0, w0, h0 = popup._resize_start
+        dx, dy = e.x_root - x0, e.y_root - y0
+        new_width = max(300, w0 + dx)
+        new_height = max(150, h0 + dy)
+        popup.geometry(f"{new_width}x{new_height}")
+        lbl.config(wraplength=new_width - 20)
+
+    resize_grip.bind("<Button-1>", start_resize)
+    resize_grip.bind("<B1-Motion>", do_resize)
 
     fixed_popups[col] = {
         "win": popup,
         "col": col,
         "row": row,
-        "height": height
+        "height": popup_height
     }
 
-    popup_index = (popup_index + 1) % 3
+    popup_index = (popup_index + 1) % MAX_COLS
 
 # === Command Handlers ===
 def send_text_command():
