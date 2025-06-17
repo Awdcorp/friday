@@ -3,6 +3,7 @@ from tkinter import ttk
 import threading
 from voice_listener_vad import listen_once
 from voice_listener_google import start_google_listening, stop_google_listening
+from voice_listener_system import start_system_listener, stop_system_listener
 from memory_manager import get_full_memory_log
 from ask_gpt import ask_gpt
 from local_llm_interface import ask_local_llm
@@ -21,7 +22,7 @@ process_command_callback = ask_with_model
 # === Main Window ===
 root = tk.Tk()
 root.title("Friday Assistant")  # 🖼️ Change app window title here
-root.geometry("400x450+100+500")  # 📏 Change window size & initial position here
+root.geometry("400x550+100+500")  # 📏 Change window size & initial position here
 root.configure(bg='#1f1f1f')  # 🎨 Main background color of the app
 root.attributes("-topmost", True)
 root.attributes("-alpha", 0.8)  # 🪟 Window transparency (0.0 to 1.0)
@@ -136,9 +137,9 @@ def restore_main():
         alpha_slider.pack(pady=(0, 10))
 
         if last_main_position[0]:
-            root.geometry(f"400x450+{last_main_position[0][0]}+{last_main_position[0][1]}")
+            root.geometry(f"400x500+{last_main_position[0][0]}+{last_main_position[0][1]}")
         else:
-            root.geometry("400x450+100+500")  # fallback
+            root.geometry("400x500+100+500")  # fallback
         main_minimized[0] = False
         for popup, _ in minimized_popups:
             if popup.winfo_exists():
@@ -388,6 +389,33 @@ def toggle_google_mode():
         stop_google_listening()
         live_btn.config(text="🟢 Google STT")
         google_active[0] = False
+
+# === System STT Toggle ===
+system_active = [False]
+def toggle_system_mode():
+    if not system_active[0]:
+        system_active[0] = True
+        system_btn.config(text="🔴 Stop System")
+        def update_ui(_1, _2, status):
+            if status.startswith("🧠 Final:"):
+                final = status.replace("🧠 Final:", "").strip()
+                output_text.config(state="normal")
+                output_text.insert(tk.END, f"You (System): {final}\n")
+                output_text.config(state="disabled")
+        def handle(transcript):
+            response = process_command_callback(transcript)
+            show_floating_response(response)
+            return "🧠 Processed"
+        start_system_listener(update_ui, handle)
+    else:
+        stop_system_listener()
+        system_btn.config(text="🟢 System Listen")
+        system_active[0] = False
+
+# === Add to Button Frame ===
+system_btn = tk.Button(btn_frame, text="🟢 System Listen", command=toggle_system_mode,
+                       font=("Segoe UI", 10), bg="#444", fg="#FFF", width=14)
+system_btn.grid(row=1, column=1, columnspan=2, pady=(10, 0))
 
 # === Hooks ===
 def update_overlay(_, __, status): show_floating_response(status)
