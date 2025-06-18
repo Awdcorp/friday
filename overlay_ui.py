@@ -7,6 +7,7 @@ from voice_listener_system import start_system_listener, stop_system_listener
 from memory_manager import get_full_memory_log
 from ask_gpt import ask_gpt
 from local_llm_interface import ask_local_llm
+from conversation_mode.conversation_mode_handler import start_conversation_mode, stop_conversation_mode
 
 # === Core Callback ===
 def ask_with_model(prompt):
@@ -18,6 +19,9 @@ def ask_with_model(prompt):
     except: return ask_gpt(prompt)
 
 process_command_callback = ask_with_model
+
+# === Global State ===
+conversation_active = [False]
 
 # === Main Window ===
 root = tk.Tk()
@@ -200,6 +204,27 @@ def toggle_mode():
 mode_btn = tk.Button(root, text=f"🧠 Mode: {mode_var.get()}", command=toggle_mode,
                      font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
 mode_btn.pack(pady=(0, 10))
+
+def toggle_conversation_mode():
+    if not conversation_active[0]:
+        conversation_active[0] = True
+        conversation_btn.config(text="🎙️ Passive Mode: On")
+        def handle_transcript(text):
+            output_text.config(state="normal")
+            output_text.insert(tk.END, f"🎙️ Passive: {text}\n")
+            output_text.config(state="disabled")
+            response = process_command_callback(text)
+            show_floating_response(response)
+        start_conversation_mode(update_overlay, handle_transcript)
+    else:
+        conversation_active[0] = False
+        conversation_btn.config(text="🎙️ Passive Mode: Off")
+        stop_conversation_mode()
+
+# Add toggle button to UI
+conversation_btn = tk.Button(root, text="🎙️ Passive Mode: Off", command=toggle_conversation_mode,
+                             font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
+conversation_btn.pack(pady=(0, 10))
 
 # === Transparency Slider ===
 def on_alpha_change(value):
