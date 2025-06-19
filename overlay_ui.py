@@ -7,7 +7,7 @@ from voice_listener_system import start_system_listener, stop_system_listener
 from memory_manager import get_full_memory_log
 from ask_gpt import ask_gpt
 from local_llm_interface import ask_local_llm
-from conversation_mode.conversation_mode_handler import start_conversation_mode, stop_conversation_mode
+from conversation_mode.conversation_mode_handler import start_conversation_mode, stop_conversation_mode, run_single_utterance  
 
 # === Core Callback ===
 def ask_with_model(prompt):
@@ -209,12 +209,19 @@ def toggle_conversation_mode():
     if not conversation_active[0]:
         conversation_active[0] = True
         conversation_btn.config(text="🎙️ Passive Mode: On")
+
         def handle_transcript(text):
             output_text.config(state="normal")
             output_text.insert(tk.END, f"🎙️ Passive: {text}\n")
             output_text.config(state="disabled")
-            response = process_command_callback(text)
-            show_floating_response(response)
+
+            def run():
+                response = run_single_utterance(text)
+                if response:
+                    show_floating_response(response)
+
+            threading.Thread(target=run).start()
+
         start_conversation_mode(update_overlay, handle_transcript)
     else:
         conversation_active[0] = False
@@ -225,6 +232,27 @@ def toggle_conversation_mode():
 conversation_btn = tk.Button(root, text="🎙️ Passive Mode: Off", command=toggle_conversation_mode,
                              font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
 conversation_btn.pack(pady=(0, 10))
+
+# === Audio Input Mode Selector ===
+from conversation_mode.conversation_config import AUDIO_INPUT_MODE, set_audio_input_mode
+
+audio_mode_var = tk.StringVar(value=AUDIO_INPUT_MODE)  # default from config
+
+def update_audio_mode():
+    selected = audio_mode_var.get()
+    set_audio_input_mode(selected)
+
+audio_mode_frame = tk.Frame(root, bg="#1f1f1f")
+audio_mode_frame.pack(pady=(0, 10))
+
+tk.Label(audio_mode_frame, text="🎛 Audio Source:", bg="#1f1f1f", fg="#fff").pack(side="left", padx=(0, 6))
+
+for mode, label in [("mic", "Mic Only"), ("system", "System Only"), ("both", "Both")]:
+    btn = tk.Radiobutton(audio_mode_frame, text=label, value=mode,
+                         variable=audio_mode_var, command=update_audio_mode,
+                         font=("Segoe UI", 9), bg="#1f1f1f", fg="#fff",
+                         activebackground="#2a2a2a", selectcolor="#444")
+    btn.pack(side="left", padx=6)
 
 # === Transparency Slider ===
 def on_alpha_change(value):

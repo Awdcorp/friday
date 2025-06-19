@@ -1,115 +1,143 @@
 # conversation_mode/utterance_buffer.py
 
 """
-Utterance Buffer – Captures spoken input from selected audio source:
-- Mic
-- System audio
-- Both combined
+Utterance Buffer – Captures spoken input from system audio using real-time Google STT.
+Fallback to Whisper if needed.
 
-Transcribes using Google STT, with Whisper fallback.
+✅ Current Mode: SYSTEM AUDIO ONLY
 """
 
 import time
 import threading
-import io
+import queue
 import pyaudio
-import wave
-
+import numpy as np
 import speech_recognition as sr
+from google.cloud import speech
 from voice_listener_whisper import transcribe_whisper
-from conversation_mode.conversation_config import AUDIO_INPUT_MODE
-from voice_listener_system import capture_system_audio  # ⬅️ You already have this
-# We'll implement mic + merging below
 
-# === Common Settings ===
-SAMPLE_RATE = 16000
-CHUNK = 1024
-RECORD_SECONDS = 5  # For simplicity (can be pause-based later)
+# === Default System Audio Input Settings ===
+DEVICE_INDEX = CHANNELS = RATE = None
+P = pyaudio.PyAudio()
 
-recognizer = sr.Recognizer()
+preferred_devices = [
+    "Voicemeeter Out B2",
+    "CABLE Output",
+    "Stereo Mix",
+    "Primary Sound Capture Driver"
+]
 
+for name in preferred_devices:
+    for i in range(P.get_device_count()):
+        info = P.get_device_info_by_index(i)
+        if name.lower() in info.get('name', '').lower() and info.get('maxInputChannels', 0) > 0:
+            DEVICE_INDEX = i
+            CHANNELS = 1
+            RATE = int(info['defaultSampleRate'])
+            print(f"✅ Found system device: {info['name']} | Index: {DEVICE_INDEX} | Rate: {RATE}")
+            break
+    if DEVICE_INDEX is not None:
+        break
 
-def capture_mic_audio():
-    """Capture raw audio from the mic."""
-    print("🎤 Capturing mic audio...")
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paInt16,
-                    channels=1,
-                    rate=SAMPLE_RATE,
-                    input=True,
-                    frames_per_buffer=CHUNK)
+if DEVICE_INDEX is None:
+    raise RuntimeError("❌ No valid system audio capture device found. Please check Voicemeeter or Cable Output.")
+
+CHUNK = int(RATE / 10)
+
+# === Google STT Setup ===
+client = speech.SpeechClient()
+recognition_config = speech.RecognitionConfig(
+    encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+    sample_rate_hertz=RATE,
+    language_code="en-US",
+    enable_automatic_punctuation=True
+)
+streaming_config = speech.StreamingRecognitionConfig(
+    config=recognition_config,
+    interim_results=False  # We only want final result here
+)
+
+# === Realtime Audio Generator ===
+def audio_generator(q):
+    while True:
+        data = q.get()
+        if data is None:
+            break
+        yield speech.StreamingRecognizeRequest(audio_content=data)
+
+# === Main Entry ===
+def get_next_utterance():
+    """
+    Captures live system audio and returns transcribed text.
+    Falls back to Whisper if Google STT fails.
+    """
+    print("🎧 Starting system audio stream...")
+
+    audio_queue = queue.Queue()
+
+    def callback(in_data, frame_count, time_info, status):
+        audio_queue.put(in_data)
+        return (None, pyaudio.paContinue)
+
+    try:
+        stream = P.open(
+            format=pyaudio.paInt16,
+            channels=CHANNELS,
+            rate=RATE,
+            input=True,
+            input_device_index=DEVICE_INDEX,
+            frames_per_buffer=CHUNK,
+            stream_callback=callback
+        )
+    except Exception as e:
+        print("❌ Failed to open system stream:", e)
+        return None
+
+    stream.start_stream()
+    responses = client.streaming_recognize(streaming_config, audio_generator(audio_queue))
+
+    try:
+        for response in responses:
+            if not response.results:
+                continue
+            result = response.results[0]
+            if result.is_final:
+                transcript = result.alternatives[0].transcript.strip()
+                print(f"👂 Heard (Google): {transcript}")
+                stream.stop_stream()
+                stream.close()
+                return transcript
+    except Exception as e:
+        print(f"⚠️ Google STT error: {e}")
+        # fallback to Whisper using last few seconds
+        stream.stop_stream()
+        stream.close()
+        return fallback_to_whisper()
+
+    return None
+
+def fallback_to_whisper(duration_seconds=6):
+    """
+    Captures a short fixed system sample and passes to Whisper for transcription.
+    """
+    print(f"🔁 Falling back to Whisper for {duration_seconds}s audio...")
+
+    stream = P.open(
+        format=pyaudio.paInt16,
+        channels=CHANNELS,
+        rate=RATE,
+        input=True,
+        input_device_index=DEVICE_INDEX,
+        frames_per_buffer=CHUNK
+    )
 
     frames = []
-    for _ in range(0, int(SAMPLE_RATE / CHUNK * RECORD_SECONDS)):
+    for _ in range(0, int(RATE / CHUNK * duration_seconds)):
         data = stream.read(CHUNK)
         frames.append(data)
 
     stream.stop_stream()
     stream.close()
-    p.terminate()
+    raw_audio = b''.join(frames)
 
-    return b"".join(frames)
-
-
-def merge_audio_bytes(bytes1, bytes2):
-    """
-    Merge two raw PCM audio byte streams.
-    Assumes same format/sample rate/channels.
-    Simply averages samples from both sources.
-    """
-    import numpy as np
-
-    # Convert to numpy int16 arrays
-    a1 = np.frombuffer(bytes1, dtype=np.int16)
-    a2 = np.frombuffer(bytes2, dtype=np.int16)
-
-    # Pad shorter one
-    min_len = min(len(a1), len(a2))
-    a1 = a1[:min_len]
-    a2 = a2[:min_len]
-
-    merged = ((a1.astype(int) + a2.astype(int)) // 2).astype(np.int16)
-    return merged.tobytes()
-
-
-def get_next_utterance():
-    """
-    Main entry. Captures audio from configured source(s),
-    transcribes, and returns the transcript string.
-    """
-
-    audio_data = None
-
-    if AUDIO_INPUT_MODE == "mic":
-        mic_audio = capture_mic_audio()
-        audio_data = mic_audio
-
-    elif AUDIO_INPUT_MODE == "system":
-        system_audio = capture_system_audio(RECORD_SECONDS)  # Must return raw PCM bytes
-        audio_data = system_audio
-
-    elif AUDIO_INPUT_MODE == "both":
-        print("🎧 Capturing mic + system audio together...")
-        mic_audio = capture_mic_audio()
-        system_audio = capture_system_audio(RECORD_SECONDS)
-        audio_data = merge_audio_bytes(mic_audio, system_audio)
-
-    else:
-        print(f"❌ Unknown AUDIO_INPUT_MODE: {AUDIO_INPUT_MODE}")
-        return None
-
-    # Transcribe with Google first
-    print("🧠 Transcribing via Google STT...")
-    try:
-        audio = sr.AudioData(audio_data, SAMPLE_RATE, 2)
-        transcript = recognizer.recognize_google(audio)
-        print(f"📄 Google Transcript: {transcript}")
-        return transcript
-
-    except sr.UnknownValueError:
-        print("⚠️ Google couldn't understand. Trying Whisper...")
-        return transcribe_whisper(audio_data)
-
-    except sr.RequestError:
-        print("⚠️ Google STT failed (API error). Trying Whisper...")
-        return transcribe_whisper(audio_data)
+    return transcribe_whisper(raw_audio)
