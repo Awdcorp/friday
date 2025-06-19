@@ -212,15 +212,19 @@ def toggle_conversation_mode():
 
         def handle_transcript(text):
             output_text.config(state="normal")
-            output_text.insert(tk.END, f"🎙️ Passive: {text}\n")
+            if text.startswith("[Interim]"):
+                # Show interim as live-updating line (optional: clear old ones first)
+                output_text.insert(tk.END, f"{text}\n")
+            else:
+                output_text.insert(tk.END, f"🎙️ Final: {text}\n")
             output_text.config(state="disabled")
 
-            def run():
-                response = run_single_utterance(text)
-                if response:
-                    show_floating_response(response)
-
-            threading.Thread(target=run).start()
+            if not text.startswith("[Interim]"):
+                def run():
+                    response = run_single_utterance(text)
+                    if response:
+                        show_floating_response(response)
+                threading.Thread(target=run).start()
 
         start_conversation_mode(update_overlay, handle_transcript)
     else:

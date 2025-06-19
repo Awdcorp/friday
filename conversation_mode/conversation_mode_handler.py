@@ -1,19 +1,16 @@
 """
-Main Loop – Friday's Conversation Mode Brain
+Conversation Mode Handler – Continuous mode brain for Friday
 
-This file ties together:
-- Audio capture (utterance_buffer)
-- Intent detection
-- GPT/local reasoning
-- Context tracking
-- Cooldown & dedup logic
-- UI response
-- Conversation logging
-
-Runs in a continuous loop to simulate a real intelligent assistant.
+Implements:
+- System audio streaming via utterance_buffer
+- Callback-based processing of final/interim transcripts
+- Intent detection, GPT response, logging
 """
 
-from conversation_mode.utterance_buffer import get_next_utterance
+from conversation_mode.utterance_buffer import (
+    start_streaming_listener,
+    stop_streaming_listener
+)
 from conversation_mode.intent_agent import detect_intent
 from conversation_mode.reasoning_core import get_response
 from conversation_mode.context_manager import update_context
@@ -24,101 +21,93 @@ import threading
 
 # === Runtime Toggle Support ===
 _conversation_mode_running = False
-_stop_event = threading.Event()
 
-def run_conversation_loop(update_overlay, handle_transcript):
-    """
-    Main blocking loop to run Friday's smart voice mode.
-    """
-    global _conversation_mode_running
-    print("🎤 Friday Conversation Mode Active...")
-    _stop_event.clear()
-
-    while not _stop_event.is_set():
-        try:
-            # 1. Listen and get transcript (blocking)
-            transcript = get_next_utterance()
-            if not transcript:
-                continue
-
-            print(f"👂 Heard: {transcript}")
-
-            # 2. Show raw input (before classification) on UI
-            handle_transcript(transcript)
-
-            # 3. Cooldown & duplication check
-            if not should_respond(transcript):
-                continue
-
-            # 4. Classify the intent
-            intent = detect_intent(transcript)
-
-            # 5. Get smart response from reasoning core
-            response = get_response(transcript, intent)
-
-            # 6. Update short-term memory/context
-            update_context(transcript, intent, response)
-
-            # 7. Show reply in UI
-            update_overlay([transcript, response], "Conversation", f"🤖 {response}")
-
-            # 8. Save log
-            log_conversation(transcript, intent, response)
-
-        except Exception as e:
-            print(f"❌ Loop Error: {e}")
-            continue
+# These will be set by overlay UI on init
+_overlay_ui_callback = None
+_transcript_ui_callback = None
 
 def start_conversation_mode(update_overlay_func, handle_transcript_func):
     """
-    Starts the conversation loop in a background thread.
-    Called when user enables 🎙️ Passive Mode.
+    Starts continuous conversation mode.
+    Registers callbacks for final + interim STT results.
     """
-    global _conversation_mode_running
+    global _conversation_mode_running, _overlay_ui_callback, _transcript_ui_callback
 
     if _conversation_mode_running:
         print("⚠️ Conversation mode already running.")
         return
 
-    def _loop():
-        global _conversation_mode_running
-        _conversation_mode_running = True
-        try:
-            run_conversation_loop(update_overlay_func, handle_transcript_func)
-        finally:
-            _conversation_mode_running = False
+    _overlay_ui_callback = update_overlay_func
+    _transcript_ui_callback = handle_transcript_func
+    _conversation_mode_running = True
 
-    thread = threading.Thread(target=_loop, daemon=True)
-    thread.start()
-    print("🟢 Conversation Mode Started in background.")
+    print("🎤 Friday Conversation Mode Active (stream-based)...")
 
-def run_single_utterance(transcript: str) -> str:
-    """
-    Allows manual routing of a transcript (e.g., from UI text/voice input).
-    Includes all memory, intent, and logging logic.
-    """
-    try:
-        if not should_respond(transcript):
-            return ""
-
-        intent = detect_intent(transcript)
-        response = get_response(transcript, intent)
-        update_context(transcript, intent, response)
-        log_conversation(transcript, intent, response)
-        return response
-
-    except Exception as e:
-        print(f"❌ Error in run_single_utterance: {e}")
-        return "⚠️ Failed to process input."
+    # Start STT stream
+    start_streaming_listener(
+        on_final_callback=on_final_transcript,
+        on_interim_callback=on_interim_update
+    )
 
 def stop_conversation_mode():
     """
-    Stops the conversation loop – soft stop.
+    Stops the continuous streaming STT listener.
     """
     global _conversation_mode_running
 
     if _conversation_mode_running:
         print("🟡 Conversation Mode Stop requested.")
-        _stop_event.set()
+        stop_streaming_listener()
+        _conversation_mode_running = False
     else:
         print("⚠️ Conversation Mode is not running.")
+
+def on_interim_update(text: str):
+    """
+    Optional UI update for interim STT results.
+    """
+    if _transcript_ui_callback:
+        _transcript_ui_callback(f"[Interim] {text}")
+
+def on_final_transcript(transcript: str):
+    """
+    Called by utterance_buffer when a full sentence is finalized.
+    Runs full reasoning + UI update in a background thread.
+    """
+    if not transcript.strip():
+        return
+
+    print(f"👂 Final transcript: {transcript}")
+
+    # Echo to transcript area (e.g., overlay input log)
+    if _transcript_ui_callback:
+        _transcript_ui_callback(transcript)
+
+    def process():
+        if not should_respond(transcript):
+            return
+        intent = detect_intent(transcript)
+        response = get_response(transcript, intent)
+        update_context(transcript, intent, response)
+        log_conversation(transcript, intent, response)
+
+        if _overlay_ui_callback:
+            _overlay_ui_callback([transcript, response], "Conversation", f"🤖 {response}")
+
+    threading.Thread(target=process).start()
+
+def run_single_utterance(transcript: str) -> str:
+    """
+    Manual call for single transcript (e.g. typed or recorded).
+    """
+    try:
+        if not should_respond(transcript):
+            return ""
+        intent = detect_intent(transcript)
+        response = get_response(transcript, intent)
+        update_context(transcript, intent, response)
+        log_conversation(transcript, intent, response)
+        return response
+    except Exception as e:
+        print(f"❌ Error in run_single_utterance: {e}")
+        return "⚠️ Failed to process input."
