@@ -59,6 +59,7 @@ def stop_conversation_mode():
         print("🟡 Conversation Mode Stop requested.")
         stop_streaming_listener()
         _conversation_mode_running = False
+        print("🛑 Streaming STT stopped.")
     else:
         print("⚠️ Conversation Mode is not running.")
 
@@ -66,6 +67,7 @@ def on_interim_update(text: str):
     """
     Optional UI update for interim STT results.
     """
+    print(f"💬 Interim: {text}")
     if _transcript_ui_callback:
         _transcript_ui_callback(f"[Interim] {text}")
 
@@ -74,25 +76,41 @@ def on_final_transcript(transcript: str):
     Called by utterance_buffer when a full sentence is finalized.
     Runs full reasoning + UI update in a background thread.
     """
-    if not transcript.strip():
+    transcript = transcript.strip()
+    if not transcript:
+        print("⚠️ Empty final transcript received. Skipping.")
         return
 
     print(f"👂 Final transcript: {transcript}")
 
-    # Echo to transcript area (e.g., overlay input log)
+    # Show transcript in UI
     if _transcript_ui_callback:
         _transcript_ui_callback(transcript)
 
     def process():
-        if not should_respond(transcript):
-            return
-        intent = detect_intent(transcript)
-        response = get_response(transcript, intent)
-        update_context(transcript, intent, response)
-        log_conversation(transcript, intent, response)
+        try:
+            if not should_respond(transcript):
+                print("⏩ Skipping further processing due to cooldown or duplicate.")
+                return
 
-        if _overlay_ui_callback:
-            _overlay_ui_callback([transcript, response], "Conversation", f"🤖 {response}")
+            print(f"📥 Processing: {transcript}")
+            intent = detect_intent(transcript)
+            print(f"🧠 Intent: {intent}")
+
+            response = get_response(transcript, intent)
+            print(f"📤 GPT Response: {response}")
+
+            update_context(transcript, intent, response)
+            print("🗃️ Context updated.")
+
+            log_conversation(transcript, intent, response)
+            print("📝 Logged conversation to file.")
+
+            if _overlay_ui_callback:
+                _overlay_ui_callback([transcript, response], "Conversation", f"🤖 {response}")
+
+        except Exception as e:
+            print(f"❌ Error in process(): {e}")
 
     threading.Thread(target=process).start()
 
@@ -100,14 +118,23 @@ def run_single_utterance(transcript: str) -> str:
     """
     Manual call for single transcript (e.g. typed or recorded).
     """
+    transcript = transcript.strip()
+    print(f"📥 Manual Transcript: {transcript}")
     try:
         if not should_respond(transcript):
+            print("⏩ Skipping (manual): Cooldown or duplicate.")
             return ""
+
         intent = detect_intent(transcript)
+        print(f"🧠 Intent (manual): {intent}")
+
         response = get_response(transcript, intent)
+        print(f"📤 GPT Response (manual): {response}")
+
         update_context(transcript, intent, response)
         log_conversation(transcript, intent, response)
         return response
+
     except Exception as e:
         print(f"❌ Error in run_single_utterance: {e}")
         return "⚠️ Failed to process input."

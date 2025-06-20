@@ -209,11 +209,11 @@ def toggle_conversation_mode():
     if not conversation_active[0]:
         conversation_active[0] = True
         conversation_btn.config(text="🎙️ Passive Mode: On")
-
+        print("🟢 Conversation Mode: ON")
         def handle_transcript(text):
+            print(f"📡 Passive handle_transcript text='{text}'")
             output_text.config(state="normal")
             if text.startswith("[Interim]"):
-                # Show interim as live-updating line (optional: clear old ones first)
                 output_text.insert(tk.END, f"{text}\n")
             else:
                 output_text.insert(tk.END, f"🎙️ Final: {text}\n")
@@ -221,7 +221,9 @@ def toggle_conversation_mode():
 
             if not text.startswith("[Interim]"):
                 def run():
+                    print(f"🛠 run_single_utterance for passive='{text}'")
                     response = run_single_utterance(text)
+                    print(f"📝 Passive got response='{response}'")
                     if response:
                         show_floating_response(response)
                 threading.Thread(target=run).start()
@@ -231,6 +233,7 @@ def toggle_conversation_mode():
         conversation_active[0] = False
         conversation_btn.config(text="🎙️ Passive Mode: Off")
         stop_conversation_mode()
+        print("🔴 Conversation Mode: OFF")
 
 # Add toggle button to UI
 conversation_btn = tk.Button(root, text="🎙️ Passive Mode: Off", command=toggle_conversation_mode,
@@ -401,28 +404,39 @@ def show_floating_response(text):
 # === Command Handlers ===
 def send_text_command():
     user_input = input_text.get().strip()
-    if not user_input: return
+    print(f"🎯 send_text_command: user_input='{user_input}'")
+    if not user_input:
+        print("⚠️ send_text_command: empty input, ignoring")
+        return
     output_text.config(state="normal")
     output_text.insert(tk.END, f"You: {user_input}\n")
     output_text.config(state="disabled")
     input_text.delete(0, tk.END)
     def run():
+        print(f"🛠 Running process_command_callback for text command")
         response = process_command_callback(user_input)
+        print(f"📝 Text command got response='{response}'")
         show_floating_response(response)
     threading.Thread(target=run).start()
 
+# === Voice Command Handler ===
 def send_voice_command():
+    print("🎤 send_voice_command: listening once")
     output_text.config(state="normal")
     output_text.insert(tk.END, "🎤 Listening...\n")
     output_text.config(state="disabled")
     def run():
         transcript = listen_once()
+        print(f"🔊 send_voice_command: transcript='{transcript}'")
         if transcript.strip():
             output_text.config(state="normal")
             output_text.insert(tk.END, f"You (Voice): {transcript}\n")
             output_text.config(state="disabled")
             response = process_command_callback(transcript)
+            print(f"📝 Voice command got response='{response}'")
             show_floating_response(response)
+        else:
+            print("⚠️ send_voice_command: empty transcript, nothing to process")
     threading.Thread(target=run).start()
 
 # === Google STT Toggle ===
@@ -431,14 +445,18 @@ def toggle_google_mode():
     if not google_active[0]:
         google_active[0] = True
         live_btn.config(text="🔴 Stop STT")
+        print("🟢 Google STT started")
         def update_ui(_1, _2, status):
             if status.startswith("🧠 Final:"):
                 final = status.replace("🧠 Final:", "").strip()
+                print(f"📩 Google STT final status='{final}'")
                 output_text.config(state="normal")
                 output_text.insert(tk.END, f"You (Voice): {final}\n")
                 output_text.config(state="disabled")
         def handle(transcript):
+            print(f"▶️ Google STT handle transcript='{transcript}'")
             response = process_command_callback(transcript)
+            print(f"📝 STT handle got response='{response}'")
             show_floating_response(response)
             return "🧠 Processed"
         start_google_listening(update_ui, handle)
@@ -446,6 +464,7 @@ def toggle_google_mode():
         stop_google_listening()
         live_btn.config(text="🟢 Google STT")
         google_active[0] = False
+        print("🔴 Google STT stopped")
 
 # === System STT Toggle ===
 system_active = [False]
@@ -453,14 +472,18 @@ def toggle_system_mode():
     if not system_active[0]:
         system_active[0] = True
         system_btn.config(text="🔴 Stop System")
+        print("🟢 System STT started")
         def update_ui(_1, _2, status):
             if status.startswith("🧠 Final:"):
                 final = status.replace("🧠 Final:", "").strip()
+                print(f"📩 System STT final status='{final}'")
                 output_text.config(state="normal")
                 output_text.insert(tk.END, f"You (System): {final}\n")
                 output_text.config(state="disabled")
         def handle(transcript):
+            print(f"▶️ System STT handle transcript='{transcript}'")
             response = process_command_callback(transcript)
+            print(f"📝 System STT handle got response='{response}'")
             show_floating_response(response)
             return "🧠 Processed"
         start_system_listener(update_ui, handle)
@@ -468,6 +491,7 @@ def toggle_system_mode():
         stop_system_listener()
         system_btn.config(text="🟢 System Listen")
         system_active[0] = False
+        print("🔴 System STT stopped")
 
 # === Add to Button Frame ===
 system_btn = tk.Button(btn_frame, text="🟢 System Listen", command=toggle_system_mode,

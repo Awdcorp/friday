@@ -1,5 +1,3 @@
-# conversation_mode/action_selector.py
-
 """
 Action Selector – Decides whether to respond or skip a given transcript.
 Handles:
@@ -11,7 +9,7 @@ Handles:
 import time
 
 # === Settings ===
-COOLDOWN_SECONDS = 3  # Minimum time gap between replies
+COOLDOWN_SECONDS = 1.2  # ⏳ Reduced for faster interactions
 DUPLICATE_THRESHOLD = 0.9  # Similarity score (if 90% same, skip)
 
 # Internal state
@@ -24,27 +22,33 @@ def should_respond(transcript: str) -> bool:
     Returns True if Friday should respond to the given transcript,
     otherwise False (e.g., recent duplicate or cooldown active).
     """
-
     global _last_response_time, _last_transcript
 
     now = time.time()
+    transcript = transcript.strip()
 
     # 1. Skip if empty
-    if not transcript.strip():
+    if not transcript:
         print("⚠️ Skipping: Empty input")
         return False
 
-    # 2. Skip if too soon (cooldown)
-    if now - _last_response_time < COOLDOWN_SECONDS:
-        print("⏳ Skipping: Cooldown not finished")
+    # 2. Skip if it's a common filler (optional, disable if needed)
+    if transcript.lower() in {"okay", "yes", "uh", "hmm", "right", "yeah"}:
+        print(f"⚠️ Skipping filler: {transcript}")
         return False
 
-    # 3. Skip if same/similar to last message
+    # 3. Skip if cooldown not finished
+    time_diff = now - _last_response_time
+    if time_diff < COOLDOWN_SECONDS:
+        print(f"⏳ Skipping: Cooldown not finished ({time_diff:.2f}s)")
+        return False
+
+    # 4. Skip if same/similar to last message
     if is_duplicate(transcript, _last_transcript):
         print("🔁 Skipping: Duplicate input")
         return False
 
-    # 4. If passed all checks, update state
+    # 5. Passed all checks
     _last_response_time = now
     _last_transcript = transcript
     return True

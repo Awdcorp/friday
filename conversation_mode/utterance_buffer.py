@@ -22,6 +22,7 @@ preferred_devices = [
     "Primary Sound Capture Driver"
 ]
 
+print("🔍 Searching for preferred system audio device...")
 for name in preferred_devices:
     for i in range(P.get_device_count()):
         info = P.get_device_info_by_index(i)
@@ -63,7 +64,6 @@ def start_streaming_listener(on_final_callback, on_interim_callback=None):
     Calls `on_final_callback(transcript)` for final text.
     Calls `on_interim_callback(text)` (optional) for live updates.
     """
-
     global _stream_running, _audio_thread, _listener_thread
 
     if _stream_running:
@@ -74,13 +74,14 @@ def start_streaming_listener(on_final_callback, on_interim_callback=None):
     _stream_running = True
     audio_queue = queue.Queue()
 
-    # Audio callback
+    # === Audio Capture Callback ===
     def callback(in_data, frame_count, time_info, status):
         if _stream_running:
             audio_queue.put(in_data)
         return (None, pyaudio.paContinue)
 
-    # Open audio stream
+    # === Open Mic Stream ===
+    print(f"🔊 Opening stream: Channels={CHANNELS}, Rate={RATE}, Index={DEVICE_INDEX}")
     stream = P.open(
         format=pyaudio.paInt16,
         channels=CHANNELS,
@@ -92,7 +93,7 @@ def start_streaming_listener(on_final_callback, on_interim_callback=None):
     )
     stream.start_stream()
 
-    # Audio generator
+    # === Streaming Generator ===
     def generator():
         while _stream_running:
             data = audio_queue.get()
@@ -100,13 +101,15 @@ def start_streaming_listener(on_final_callback, on_interim_callback=None):
                 break
             yield speech.StreamingRecognizeRequest(audio_content=data)
 
-    # Listener thread
+    # === STT Listening Loop ===
     def listen():
         global _stream_running
         try:
             responses = client.streaming_recognize(streaming_config, generator())
+            print("🧠 Google STT streaming session started.")
             for response in responses:
                 if not _stream_running:
+                    print("🛑 STT streaming interrupted.")
                     break
                 if not response.results:
                     continue
@@ -115,11 +118,11 @@ def start_streaming_listener(on_final_callback, on_interim_callback=None):
                 transcript = result.alternatives[0].transcript.strip()
 
                 if result.is_final:
-                    print(f"👂 Final: {transcript}")
+                    print(f"🟩 Final STT: {transcript}")
                     if on_final_callback:
                         threading.Thread(target=on_final_callback, args=(transcript,)).start()
                 else:
-                    print(f"💬 Interim: {transcript}")
+                    print(f"🟨 Interim STT: {transcript}")
                     if on_interim_callback:
                         on_interim_callback(transcript)
 
@@ -128,19 +131,22 @@ def start_streaming_listener(on_final_callback, on_interim_callback=None):
             print("🔁 Falling back to Whisper...")
             fallback_transcript = fallback_to_whisper()
             if fallback_transcript and on_final_callback:
+                print(f"🟪 Whisper Final: {fallback_transcript}")
                 on_final_callback(fallback_transcript)
 
         finally:
-            print("🔁 Stopping system STT...")
+            print("🔁 Stopping system STT stream...")
             try:
                 stream.stop_stream()
                 stream.close()
-            except:
-                pass
+                print("✅ Audio stream closed.")
+            except Exception as e:
+                print(f"⚠️ Error closing stream: {e}")
             _stream_running = False
 
     _listener_thread = threading.Thread(target=listen, daemon=True)
     _listener_thread.start()
+    print("📡 STT Listener thread launched.")
 
 def stop_streaming_listener():
     """
@@ -154,7 +160,7 @@ def fallback_to_whisper(duration_seconds=6):
     """
     Captures a short fixed system sample and passes to Whisper for transcription.
     """
-    print(f"🔁 Whisper fallback for {duration_seconds}s...")
+    print(f"🎙️ Capturing fallback audio ({duration_seconds}s)...")
 
     stream = P.open(
         format=pyaudio.paInt16,
@@ -166,12 +172,16 @@ def fallback_to_whisper(duration_seconds=6):
     )
 
     frames = []
-    for _ in range(0, int(RATE / CHUNK * duration_seconds)):
-        data = stream.read(CHUNK)
-        frames.append(data)
+    try:
+        for _ in range(0, int(RATE / CHUNK * duration_seconds)):
+            data = stream.read(CHUNK)
+            frames.append(data)
+    except Exception as e:
+        print(f"❌ Whisper fallback stream error: {e}")
+    finally:
+        stream.stop_stream()
+        stream.close()
 
-    stream.stop_stream()
-    stream.close()
     raw_audio = b''.join(frames)
-
+    print("📤 Passing to Whisper for transcription...")
     return transcribe_whisper(raw_audio)

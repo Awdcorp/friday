@@ -12,16 +12,20 @@ This allows Friday to provide better answers by including:
 
 from conversation_mode.context_manager import get_recent_context
 
-
 def build_prompt(transcript: str, intent: str) -> str:
     """
     Constructs a structured prompt string for GPT
     based on intent and previous context.
+    Logs key details for traceability.
     """
+    print("🧱 Building Prompt")
+    print(f"🔍 Intent: {intent}")
+    print(f"💬 User Transcript: {transcript}")
 
     # 1. Fetch recent memory (e.g., last task, topic, user flow)
     context = get_recent_context()
-    
+    print("🧠 Recent Context Fetched:", repr(context[:200]) + ("..." if len(context) > 200 else ""))
+
     # 2. Format prompt differently based on intent
     if intent == "question":
         prompt = f"""
@@ -58,8 +62,8 @@ User follow-up:
 
 Respond appropriately — continue, modify, or clarify.
 """
-
     else:  # fallback
         prompt = f"You received: \"{transcript}\". Try to be helpful."
 
+    print("🧾 Final Prompt:\n" + prompt.strip())
     return prompt.strip()

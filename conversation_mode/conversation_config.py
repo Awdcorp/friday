@@ -13,12 +13,13 @@ AUDIO_INPUT_MODE = "both"
 
 def set_audio_input_mode(mode):
     """
-    Update AUDIO_INPUT_MODE in memory and persist if needed.
+    Update AUDIO_INPUT_MODE in memory and log changes.
     """
     global AUDIO_INPUT_MODE
+
     if mode in ("mic", "system", "both"):
         AUDIO_INPUT_MODE = mode
         print(f"🔧 Audio Input Mode set to: {mode}")
+        # In future: persist to file if needed
     else:
-        print(f"⚠️ Invalid audio input mode: {mode}")
-
+        print(f"⚠️ Invalid audio input mode: '{mode}' – valid options are: mic, system, both")
