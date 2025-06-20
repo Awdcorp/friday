@@ -29,7 +29,7 @@ root.title("Friday Assistant")  # 🖼️ Change app window title here
 root.geometry("400x550+100+500")  # 📏 Change window size & initial position here
 root.configure(bg='#1f1f1f')  # 🎨 Main background color of the app
 root.attributes("-topmost", True)
-root.attributes("-alpha", 0.8)  # 🪟 Window transparency (0.0 to 1.0)
+root.attributes("-alpha", 0.9)  # 🪟 Window transparency (0.0 to 1.0)
 root.overrideredirect(True)  # 🖼️ Remove window decorations (title bar, borders)
 
 main_minimized = [False]  # Track minimize state
@@ -41,12 +41,12 @@ last_main_position = [None]
 
 # === Popup Layout Constants ===
 POPUP_WIDTH = 420
-POPUP_HEIGHT = 260
+POPUP_HEIGHT = 700
 START_X = 100
 START_Y = 100
 COL_SPACING = 100    
 ROW_SPACING = 20
-MAX_COLS = 3 # Controls how many floating popups are allowed side by side
+MAX_COLS = 2 # Controls how many floating popups are allowed side by side
 
 # === Title Bar Frame (Draggable with Buttons) ===
 titlebar_frame = tk.Frame(root, bg="#1f1f1f", height=30)
@@ -137,13 +137,14 @@ def restore_main():
         btn_frame.pack(pady=(0, 10))
         model_selector.pack(pady=(0, 10))
         mode_btn.pack(pady=(0, 10))
-        alpha_label.pack(pady=(0, 2))
-        alpha_slider.pack(pady=(0, 10))
+        conversation_btn.pack(pady=(0, 10))
+        audio_mode_frame.pack(pady=(0, 10))
+        alpha_frame.pack(pady=(0, 10))
 
         if last_main_position[0]:
-            root.geometry(f"400x500+{last_main_position[0][0]}+{last_main_position[0][1]}")
+            root.geometry(f"400x550+{last_main_position[0][0]}+{last_main_position[0][1]}")
         else:
-            root.geometry("400x500+100+500")  # fallback
+            root.geometry("400x550+100+500")  # fallback
         main_minimized[0] = False
         for popup, _ in minimized_popups:
             if popup.winfo_exists():
@@ -269,14 +270,17 @@ def on_alpha_change(value):
         if entry and entry["win"].winfo_exists():
             entry["win"].attributes("-alpha", alpha)
 
-alpha_label = tk.Label(root, text="Set Transparency", bg="#1f1f1f", fg="#FFFFFF", font=("Segoe UI", 9))
-alpha_label.pack(pady=(0, 2))
+# === Transparency Controls in One Line ===
+alpha_frame = tk.Frame(root, bg="#1f1f1f")
+alpha_frame.pack(pady=(0, 10))
 
-alpha_slider = tk.Scale(root, from_=0.2, to=1.0, resolution=0.01, orient="horizontal",
-                        length=220, command=on_alpha_change, bg="#1f1f1f", fg="#FFFFFF",
+tk.Label(alpha_frame, text="Set Transparency", bg="#1f1f1f", fg="#FFFFFF", font=("Segoe UI", 9)).pack(side="left", padx=(0, 10))
+
+alpha_slider = tk.Scale(alpha_frame, from_=0.2, to=1.0, resolution=0.01, orient="horizontal",
+                        length=180, command=on_alpha_change, bg="#1f1f1f", fg="#FFFFFF",
                         troughcolor="#444", highlightthickness=0)
 alpha_slider.set(root.attributes("-alpha"))
-alpha_slider.pack(pady=(0, 10))
+alpha_slider.pack(side="left")
 
 # === Floating Response Popup ===
 def show_floating_response(text):
@@ -496,7 +500,7 @@ def toggle_system_mode():
 # === Add to Button Frame ===
 system_btn = tk.Button(btn_frame, text="🟢 System Listen", command=toggle_system_mode,
                        font=("Segoe UI", 10), bg="#444", fg="#FFF", width=14)
-system_btn.grid(row=1, column=1, columnspan=2, pady=(10, 0))
+system_btn.grid(row=1, column=0, columnspan=3, pady=(10, 0), padx=10, sticky="ew")
 
 # === Hooks ===
 def update_overlay(_, __, status): show_floating_response(status)
