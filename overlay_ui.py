@@ -8,6 +8,7 @@ from memory_manager import get_full_memory_log
 from ask_gpt import ask_gpt
 from local_llm_interface import ask_local_llm
 from conversation_mode.conversation_mode_handler import start_conversation_mode, stop_conversation_mode, run_single_utterance  
+from interview_mode.interview_mode_handler import start_interview_mode, stop_interview_mode
 
 # === Core Callback ===
 def ask_with_model(prompt):
@@ -22,6 +23,7 @@ process_command_callback = ask_with_model
 
 # === Global State ===
 conversation_active = [False]
+interview_active = [False]
 
 # === Main Window ===
 root = tk.Tk()
@@ -47,6 +49,17 @@ START_Y = 100
 COL_SPACING = 100    
 ROW_SPACING = 20
 MAX_COLS = 2 # Controls how many floating popups are allowed side by side
+
+# === Interview Mode Toggle Button ===
+def toggle_interview_mode():
+    if not interview_active[0]:
+        interview_active[0] = True
+        interview_btn.config(text="🎙️ Interview Mode: On")
+        start_interview_mode(update_text_box_only, handle_interview_response)
+    else:
+        interview_active[0] = False
+        interview_btn.config(text="🎙️ Interview Mode: Off")
+        stop_interview_mode()
 
 # === Title Bar Frame (Draggable with Buttons) ===
 titlebar_frame = tk.Frame(root, bg="#1f1f1f", height=30)
@@ -137,7 +150,8 @@ def restore_main():
         btn_frame.pack(pady=(0, 10))
         model_selector.pack(pady=(0, 10))
         mode_btn.pack(pady=(0, 10))
-        conversation_btn.pack(pady=(0, 10))
+        interview_btn.pack(pady=(0, 10))
+        conversation_btn.pack(pady=(0, 0))
         audio_mode_frame.pack(pady=(0, 10))
         alpha_frame.pack(pady=(0, 10))
 
@@ -193,6 +207,10 @@ model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
                               values=["GPT-4", "Auto", "Local (Mistral)"])
 model_selector.pack(pady=(0, 10))
 model_selector.configure(width=20)
+
+interview_btn = tk.Button(root, text="🎙️ Interview Mode: Off", command=toggle_interview_mode,
+                          font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
+interview_btn.pack(pady=(0, 10))
 
 # === Mode Toggle ===
 mode_var = tk.StringVar(value="Chat")  # Default is Chat mode
@@ -469,6 +487,17 @@ def toggle_google_mode():
         live_btn.config(text="🟢 Google STT")
         google_active[0] = False
         print("🔴 Google STT stopped")
+
+# Interview Mode STT → output_text only
+def update_text_box_only(_, __, status):
+    if status.startswith("🧠 Final:"):
+        final = status.replace("🧠 Final:", "").strip()
+        output_text.config(state="normal")
+        output_text.insert("end", f"You (System): {final}\n")
+        output_text.config(state="disabled")
+
+def handle_interview_response(response):
+    show_floating_response(response)
 
 # === System STT Toggle ===
 system_active = [False]
