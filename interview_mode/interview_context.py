@@ -58,3 +58,11 @@ def get_interview_context_string():
     print("────────────────────────────────────────────────")
 
     return result
+
+def get_last_interview_qa():
+    """
+    Returns the most recent question-answer pair, or None if empty.
+    """
+    if not INTERVIEW_HISTORY:
+        return None
+    return INTERVIEW_HISTORY[-1]

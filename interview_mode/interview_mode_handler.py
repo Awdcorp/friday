@@ -22,7 +22,9 @@ interview_state = {
     "last_time": 0,
     "program_thread_active": False,
     "program_topic": None,
-    "followup_count": 0
+    "followup_count": 0,
+    "program_anchor_question": None,
+    "program_anchor_answer": None
 }
 
 # === Skip filters for empty/filler inputs
@@ -50,41 +52,53 @@ def start_interview_mode(update_text_callback, response_callback):
         def run(transcript=transcript):
             print("\n[interview_handler] 🧠 Starting GPT processing thread...")
 
-            # === Step 1: Detect Enhanced Intent ===
-            intent_result = detect_interview_intent(transcript)
+            # === Step 1: Detect Enhanced Intent using program anchor
+            anchor_q = interview_state.get("program_anchor_question")
+            anchor_a = interview_state.get("program_anchor_answer")
+
+            intent_result = detect_interview_intent(transcript, anchor_q, anchor_a)
             intent = intent_result["intent"]
             corrected_text = intent_result.get("corrected_text", transcript)
             is_programming = intent_result.get("is_programming", False)
             topic = intent_result.get("topic", "")
+            follow_up = intent_result.get("follow_up", False)
 
-            print(f"[interview_handler] 🧠 Intent: {intent} | Topic: {topic} | Programming: {is_programming}")
+            print(f"[interview_handler] 🧠 Intent: {intent} | Topic: {topic} | Programming: {is_programming} | Follow-up: {follow_up}")
 
-            replace_popup = True  # default
+            # === Step 2: Determine popup and thread context
+            replace_popup = True
             popup_id = 1  # default
 
-            # === Step 2: Thread & Follow-up Handling ===
             if intent == "program_start":
                 interview_state.update({
                     "program_thread_active": True,
                     "program_topic": topic,
                     "followup_count": 0
                 })
-                popup_id = 1
-            elif intent == "program_follow_up" and interview_state["program_thread_active"]:
+                popup_id = 1  # new program question will always start in popup 1
+
+            elif follow_up and interview_state["program_thread_active"]:
                 interview_state["followup_count"] += 1
-                replace_popup = True  # Only replace within follow-up
-                popup_id = 2  # follow-ups go to popup 2
+                popup_id = 2
+                replace_popup = True
+
+                # Auto-end thread after too many followups
                 if interview_state["followup_count"] > 3:
                     interview_state.update({
                         "program_thread_active": False,
                         "program_topic": None,
-                        "followup_count": 0
+                        "followup_count": 0,
+                        "program_anchor_question": None,
+                        "program_anchor_answer": None
                     })
+
             elif intent == "thread_end":
                 interview_state.update({
                     "program_thread_active": False,
                     "program_topic": None,
-                    "followup_count": 0
+                    "followup_count": 0,
+                    "program_anchor_question": None,
+                    "program_anchor_answer": None
                 })
 
             # === Step 3: Vague Clarification
@@ -101,12 +115,18 @@ def start_interview_mode(update_text_callback, response_callback):
             log_qa(corrected_text, answer)
             update_interview_context(corrected_text, answer)
 
+            # === Step 6: Update state
             interview_state.update({
                 "mode": "ANSWERING",
                 "last_question": corrected_text,
                 "last_answer": answer,
                 "last_time": time.time()
             })
+
+            # If new program, save as anchor
+            if intent == "program_start":
+                interview_state["program_anchor_question"] = corrected_text
+                interview_state["program_anchor_answer"] = answer
 
             print("[interview_handler] ✅ Interview Q&A complete.")
 
