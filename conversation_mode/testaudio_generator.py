@@ -6,7 +6,7 @@ import os
 questions = [
     "Can you explain the difference between call by value and call by reference in C?",
     "What is a pointer in C, and how is it used?",
-    "Can you tell me what happens when you dereference a NULL pointer?",
+    "Can you tell me",
     "How would you detect memory leaks in a C program?",
     "What is the purpose of the const keyword in C?",
     "Now, tell me the use case of void pointers.",
