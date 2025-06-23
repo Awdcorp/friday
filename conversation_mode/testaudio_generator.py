@@ -6,16 +6,13 @@ import os
 questions = [
     "Can you explain the difference between call by value and call by reference in C?",
     "What is a pointer in C, and how is it used?",
-    "Can you tell me",
-    "How would you detect memory leaks in a C program?",
-    "What is the purpose of the const keyword in C?",
-    "Now, tell me the use case of void pointers.",
-    "Follow that up by explaining function pointers briefly.",
-    "Let’s go deeper — how would you implement a dynamic array in C?",
-    "And how is memory allocated and freed in such a case?",
+    "Can you tell me",            
+    "Write a program to find the factorial of a number.",
+    "Can you optimize it using recursion?",
+    "What if the number is zero?",
+    "What if input is negative?",
+    "What's the difference between stack and queue?",
     "What are the risks of using malloc without checking the return value?",
-    "Give me a quick summary of memory segments in C: stack, heap, data, and code.",
-    "Finally, can you explain the difference between static and global variables in C?"
 ]
 
 # 2. Where to put temp files

@@ -301,24 +301,22 @@ alpha_slider.set(root.attributes("-alpha"))
 alpha_slider.pack(side="left")
 
 # === Floating Response Popup ===
-def show_floating_response(text):
+def show_floating_response(text, popup_id=1):
     global popup_index, fixed_popups
 
-    # Estimate popup height based on lines
+    col = popup_id - 1  # convert popup_id to column index
+    if col < 0 or col >= MAX_COLS:
+        col = 0  # fallback if invalid
+
     line_count = text.count('\n') + 1
     line_height = 55
     base_height = 100 + (line_count * line_height)
     max_height = 900
     default_height = min(base_height, max_height)
 
-    col = popup_index % MAX_COLS
-    row = popup_index // MAX_COLS
-
-    # Default placement
     px = START_X + col * (POPUP_WIDTH + COL_SPACING)
-    py = START_Y + row * (POPUP_HEIGHT + ROW_SPACING)
+    py = START_Y
 
-    # Reuse existing popup position + size
     if fixed_popups[col]:
         old_win = fixed_popups[col]['win']
         try:
@@ -337,17 +335,16 @@ def show_floating_response(text):
     popup = tk.Toplevel(root)
     popup.overrideredirect(True)
     popup.attributes("-topmost", True)
-    popup.attributes("-alpha", root.attributes("-alpha"))  # Inherit transparency
+    popup.attributes("-alpha", root.attributes("-alpha"))
     popup.geometry(f"{popup_width}x{popup_height}+{px}+{py}")
     popup.configure(bg="#1f1f1f", highlightthickness=1, highlightbackground="#444", bd=2)
 
     outer = tk.Frame(popup, bg="#2b2b2b", bd=0, highlightthickness=0)
     outer.pack(expand=True, fill="both", padx=0, pady=0)
 
-    popup_number = popup_index + 1 
-    title_text = f"{popup_number} " + text.strip().splitlines()[0][:7] if text.strip() else "Friday Message"
+    title_text = f"{popup_id} " + text.strip().splitlines()[0][:7] if text.strip() else "Friday Message"
 
-    titlebar = tk.Frame(outer, bg="#202020", height=28)  # Area to show minimized popup buttons
+    titlebar = tk.Frame(outer, bg="#202020", height=28)
     titlebar.pack(fill="x", side="top")
 
     title = tk.Label(titlebar, text=f"🪡 {title_text}", bg="#202020", fg="#FFFFFF", font=("Segoe UI", 9, "bold"))
@@ -371,6 +368,7 @@ def show_floating_response(text):
     def popup_drag_move(e):
         dx, dy = popup._drag_offset
         popup.geometry(f"+{e.x_root - dx}+{e.y_root - dy}")
+
     titlebar.bind("<Button-1>", popup_drag_start)
     titlebar.bind("<B1-Motion>", popup_drag_move)
 
@@ -395,7 +393,6 @@ def show_floating_response(text):
                    wraplength=popup_width - 20, justify="left", anchor="nw")
     lbl.pack(padx=(8, 0), pady=6, anchor="nw", fill="x")
 
-    # === Resize Handle (Bottom-Right)
     resize_grip = tk.Frame(popup, cursor="bottom_right_corner", bg="#444", width=10, height=10)
     resize_grip.place(relx=1.0, rely=1.0, anchor="se")
 
@@ -416,7 +413,7 @@ def show_floating_response(text):
     fixed_popups[col] = {
         "win": popup,
         "col": col,
-        "row": row,
+        "row": 0,
         "height": popup_height,
         "title": title_text
     }
@@ -496,8 +493,39 @@ def update_text_box_only(_, __, status):
         output_text.insert("end", f"You (System): {final}\n")
         output_text.config(state="disabled")
 
-def handle_interview_response(response):
-    show_floating_response(response)
+# === Floating Response Renderer ===
+followup_popup_refs = []
+
+def show_followup_response(text):
+    """Creates a follow-up popup using the same styling as the main floating popup."""
+    popup = tk.Toplevel(root)
+    popup.overrideredirect(True)
+    popup.configure(bg="#111111")
+    popup.wm_attributes("-topmost", 1)
+    popup.wm_attributes("-alpha", 0.92)
+
+    label = tk.Label(popup, text=text, fg="white", bg="#111111", justify="left",
+                     font=("Segoe UI", 10), wraplength=400, padx=12, pady=10)
+    label.pack()
+
+    # Position offset near main popup or center
+    popup.update_idletasks()
+    w, h = popup.winfo_width(), popup.winfo_height()
+    x = root.winfo_x() + 80
+    y = root.winfo_y() + 120 + (len(followup_popup_refs) * (h + 10))
+    popup.geometry(f"{w}x{h}+{x}+{y}")
+
+    # Schedule auto-destroy
+    popup.after(15000, popup.destroy)
+    followup_popup_refs.append(popup)
+
+# === Interview Response Handler with Optional Popup Control ===
+def handle_interview_response(response, replace_popup=True, popup_id=1):
+    print(f"[overlay_ui] 🎯 handle_interview_response: popup_id={popup_id}, replace={replace_popup}")
+    if replace_popup:
+        show_floating_response(response, popup_id=popup_id)
+    else:
+        show_followup_response(response)
 
 # === System STT Toggle ===
 system_active = [False]

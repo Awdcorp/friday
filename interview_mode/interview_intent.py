@@ -1,68 +1,61 @@
-# interview_intent.py
-
-"""
-Interview Intent Classifier
-----------------------------
-Uses GPT to classify a transcript as:
-- question
-- command
-- follow_up
-- casual
-"""
-
 import os
 from openai import OpenAI
 
-# Initialize GPT client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-VALID_INTENTS = ["question", "command", "follow_up", "casual"]
-
 def detect_interview_intent(transcript):
-    """
-    Ask GPT to classify the type of input.
-    Returns string like 'question', 'follow_up', etc.
-    """
-    print(f"\n[interview_intent] 🧠 Intent detection started...")
+    print(f"\n[interview_intent] 🧠 Enhanced Intent detection started...")
     print(f"[interview_intent] 🗣️ Input transcript: \"{transcript}\"")
 
     prompt = f"""
-You are a strict intent classifier for a technical interview AI.
-Classify the user input below into one of:
-- question
-- command
-- follow_up
-- casual
+You are an intelligent intent classifier for a technical interview assistant.
 
-Only return one word. No explanations.
+Classify the intent of the user's message into one of the following:
+- program_start: A request to write a program (e.g. "Write a program to...", "Implement...")
+- program_follow_up: A follow-up related to a previously written program (e.g. "Can you optimize it?", "What if input is null?")
+- question: A general technical question (e.g. "What is malloc used for?", "What is a pointer?")
+- clarify: A vague or unclear message (e.g. "Can you explain?", "What about that?")
+- thread_end: A command or signal to switch context (e.g. "Let's move on", "Next question")
+- casual: Greetings, confirmations, or irrelevant phrases (e.g. "Okay", "Alright")
+
+Also answer these:
+- Is the message related to programming? (true/false)
+- Provide a corrected version if transcription is unclear (e.g., fix "linked test" to "linked list")
+- If known, extract a topic (e.g. "linked list", "malloc")
+
+Respond in JSON:
+{{
+  "intent": "...",
+  "corrected_text": "...",
+  "is_programming": true/false,
+  "topic": "..."
+}}
 
 Input: "{transcript}"
-Intent:
 """.strip()
 
-    print("[interview_intent] 📤 Sending intent classification prompt to GPT.")
-    print("──────────────── Prompt Preview ────────────────")
-    print(prompt)
-    print("────────────────────────────────────────────────")
+    print("[interview_intent] 📤 Sending enhanced prompt to GPT...")
 
     try:
-        # Direct GPT call (no persona or context)
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.0
+            temperature=0.3
         )
 
-        intent = response.choices[0].message.content.strip().lower()
-        print(f"[interview_intent] 📩 Raw GPT response: \"{intent}\"")
+        content = response.choices[0].message.content.strip()
+        print("[interview_intent] 📩 Raw response:", content)
 
-        if intent not in VALID_INTENTS:
-            print(f"[interview_intent] ⚠️ Unknown intent '{intent}' — defaulting to 'casual'")
-            return "casual"
+        import json
+        result = json.loads(content)
 
-        print(f"[interview_intent] ✅ Detected Intent: {intent}")
-        return intent
+        return result
 
     except Exception as e:
-        print(f"[interview_intent] ❌ GPT error during intent detection: {e}")
-        return "casual"
+        print(f"[interview_intent] ❌ Error: {e}")
+        return {
+            "intent": "question",
+            "corrected_text": transcript,
+            "is_programming": False,
+            "topic": ""
+        }
