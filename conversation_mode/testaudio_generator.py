@@ -20,7 +20,7 @@ os.makedirs("temp_tts", exist_ok=True)
 
 segments = []
 # 1s of silence between lines
-pause = AudioSegment.silent(duration=4000)
+pause = AudioSegment.silent(duration=5000)
 
 for idx, line in enumerate(questions):
     tts = gTTS(text=line, lang='en', slow=False)
