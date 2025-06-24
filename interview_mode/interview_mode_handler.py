@@ -1,7 +1,7 @@
 """
 Interview Mode Handler
 --------------------------
-Controls Interview Mode: system audio listening, question filtering,
+Controls Interview Mode: system or mic audio listening, question filtering,
 GPT interaction, intent detection, context tracking, and response logging.
 """
 
@@ -12,6 +12,7 @@ from .interview_logger import log_qa
 from .interview_context import update_interview_context
 from .interview_intent import detect_interview_intent
 from voice_listener_system import start_system_listener, stop_system_listener
+from voice_listener_google import start_mic_listener, stop_mic_listener
 
 # === Internal state to track session context
 interview_state = {
@@ -23,7 +24,8 @@ interview_state = {
     "program_topic": None,
     "followup_count": 0,
     "program_anchor_question": None,
-    "program_anchor_answer": None
+    "program_anchor_answer": None,
+    "listener_source": "system"  # Track active listener type
 }
 
 # === Skip filters for empty/filler inputs
@@ -38,7 +40,7 @@ def should_skip(transcript):
     return False
 
 # === Core Listener Setup ===
-def start_interview_mode(update_text_callback, response_callback, profile="software_engineer"):
+def start_interview_mode(update_text_callback, response_callback, profile="software_engineer", source="system"):
     def on_transcript(transcript):
         print(f"\n[interview_handler] 🎧 Transcript Received: {transcript}")
 
@@ -138,9 +140,19 @@ def start_interview_mode(update_text_callback, response_callback, profile="softw
 
         threading.Thread(target=run).start()
 
-    print("[interview_handler] 🚀 Interview Mode Activated")
-    start_system_listener(update_text_callback, on_transcript)
+    # === Listener Routing ===
+    print(f"[interview_handler] 🚀 Interview Mode Activated | Source: {source}")
+    interview_state["listener_source"] = source
+
+    if source == "mic":
+        start_mic_listener(update_text_callback, on_transcript)
+    else:
+        start_system_listener(update_text_callback, on_transcript)
 
 def stop_interview_mode():
     print("[interview_handler] 🛑 Interview Mode Deactivated")
-    stop_system_listener()
+
+    if interview_state.get("listener_source") == "mic":
+        stop_mic_listener()
+    else:
+        stop_system_listener()

@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 from voice_listener_vad import listen_once
-from voice_listener_google import start_google_listening, stop_google_listening
+from voice_listener_google import start_mic_listener, stop_mic_listener
 from voice_listener_system import start_system_listener, stop_system_listener
 from memory_manager import get_full_memory_log
 from ask_gpt import ask_gpt
@@ -50,12 +50,19 @@ COL_SPACING = 100
 ROW_SPACING = 20
 MAX_COLS = 2 # Controls how many floating popups are allowed side by side
 
+# === Interview Audio Source Selector ===
+interview_source_var = tk.StringVar(value="system")
+
 # === Interview Mode Toggle Button ===
 def toggle_interview_mode():
     if not interview_active[0]:
         interview_active[0] = True
         interview_btn.config(text="🎙️ Interview Mode: On")
-        start_interview_mode(update_text_box_only, handle_interview_response)
+        selected_source = interview_source_var.get()
+        print(f"🔊 Starting Interview Mode with source='{selected_source}'")
+        start_interview_mode(update_text_box_only, handle_interview_response,
+                             profile="software_engineer",
+                             source=selected_source)
     else:
         interview_active[0] = False
         interview_btn.config(text="🎙️ Interview Mode: Off")
@@ -151,6 +158,7 @@ def restore_main():
         model_selector.pack(pady=(0, 10))
         mode_btn.pack(pady=(0, 10))
         interview_btn.pack(pady=(0, 10))
+        interview_audio_frame.pack(pady=(0, 10))
         conversation_btn.pack(pady=(0, 0))
         audio_mode_frame.pack(pady=(0, 10))
         alpha_frame.pack(pady=(0, 10))
@@ -212,6 +220,19 @@ interview_btn = tk.Button(root, text="🎙️ Interview Mode: Off", command=togg
                           font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
 interview_btn.pack(pady=(0, 10))
 
+# Interview Audio Source Radio Buttons
+interview_audio_frame = tk.Frame(root, bg="#1f1f1f")
+interview_audio_frame.pack(pady=(0, 10))
+
+tk.Label(interview_audio_frame, text="🎧 Interview Input:", bg="#1f1f1f", fg="#fff").pack(side="left", padx=(0, 6))
+
+for mode, label in [("mic", "Mic"), ("system", "System")]:
+    btn = tk.Radiobutton(interview_audio_frame, text=label, value=mode,
+                         variable=interview_source_var,
+                         font=("Segoe UI", 9), bg="#1f1f1f", fg="#fff",
+                         activebackground="#2a2a2a", selectcolor="#444")
+    btn.pack(side="left", padx=6)
+    
 # === Mode Toggle ===
 mode_var = tk.StringVar(value="Chat")  # Default is Chat mode
 
@@ -478,9 +499,9 @@ def toggle_google_mode():
             print(f"📝 STT handle got response='{response}'")
             show_floating_response(response)
             return "🧠 Processed"
-        start_google_listening(update_ui, handle)
+        start_mic_listener(update_ui, handle)
     else:
-        stop_google_listening()
+        stop_mic_listener()
         live_btn.config(text="🟢 Google STT")
         google_active[0] = False
         print("🔴 Google STT stopped")
