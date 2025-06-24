@@ -28,7 +28,7 @@ interview_active = [False]
 # === Main Window ===
 root = tk.Tk()
 root.title("Friday Assistant")  # 🖼️ Change app window title here
-root.geometry("400x500+1200+200")  # 📏 Change window size & initial position here
+root.geometry("320x420+1000+200")  # 📏 Change window size & initial position here
 root.configure(bg='#1f1f1f')  # 🎨 Main background color of the app
 root.attributes("-topmost", True)
 root.attributes("-alpha", 0.9)  # 🪟 Window transparency (0.0 to 1.0)
@@ -140,7 +140,7 @@ def minimize_main():
         if widget not in [titlebar_frame, taskbar_frame] and widget.winfo_manager() == "pack":
             widget.pack_forget()
     last_main_position[0] = (root.winfo_x(), root.winfo_y())
-    root.geometry(f"400x64+{last_main_position[0][0]}+{last_main_position[0][1]}")
+    root.geometry(f"320x64+{last_main_position[0][0]}+{last_main_position[0][1]}")
     for entry in fixed_popups:
         if entry and entry['win'].winfo_exists():
             entry['win'].withdraw()
@@ -155,18 +155,18 @@ def restore_main():
         input_text.pack(padx=20, pady=(0, 10), fill="x")
         output_text.pack(padx=20, pady=(0, 10), fill="both")
         btn_frame.pack(pady=(0, 10))
-        model_selector.pack(pady=(0, 10))
-        mode_btn.pack(pady=(0, 10))
         interview_btn.pack(pady=(0, 10))
         interview_audio_frame.pack(pady=(0, 10))
         conversation_btn.pack(pady=(0, 0))
         audio_mode_frame.pack(pady=(0, 10))
+        model_selector.pack(pady=(0, 8))
+        mode_btn.pack(pady=(0, 8))
         alpha_frame.pack(pady=(0, 10))
 
         if last_main_position[0]:
-            root.geometry(f"400x500+{last_main_position[0][0]}+{last_main_position[0][1]}")
+            root.geometry(f"320x420+{last_main_position[0][0]}+{last_main_position[0][1]}")
         else:
-            root.geometry("400x500+1200+200")  # fallback
+            root.geometry("320x420+1000+200")  # fallback
         main_minimized[0] = False
         for popup, _ in minimized_popups:
             if popup.winfo_exists():
@@ -185,40 +185,34 @@ def on_popup_close(win):
     win.destroy()
 
 # === UI Content ===
-header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 14, "bold"), bg="#1f1f1f", fg="#CED6D3")
-header.pack(pady=(10, 5))
+header = tk.Label(root, text="🧠 Friday is Ready", font=("Segoe UI", 12, "bold"), bg="#1f1f1f", fg="#CED6D3")
+header.pack(pady=(8,4))
 header.bind("<Button-1>", start_drag)
 header.bind("<B1-Motion>", do_drag)
 
-input_text = tk.Entry(root, font=("Segoe UI", 11), bg="#2d2d2d", fg="#FFFFFF", insertbackground='white')
-input_text.pack(padx=20, pady=(0, 10), fill="x")
+input_text = tk.Entry(root, font=("Segoe UI", 10), bg="#2d2d2d", fg="#FFFFFF", insertbackground='white')
+input_text.pack(padx=20, pady=(0, 8), fill="x")
 input_text.bind("<Return>", lambda e: send_text_command())
 
-output_text = tk.Text(root, height=6, font=("Segoe UI", 11), bg="#1f1f1f", fg="#FFFFFF", wrap="word", state="disabled")
-output_text.pack(padx=20, pady=(0, 10), fill="both")
+output_text = tk.Text(root, height=6, font=("Segoe UI", 10), bg="#1f1f1f", fg="#FFFFFF", wrap="word", state="disabled")
+output_text.pack(padx=20, pady=(0, 8), fill="both")
 
 btn_frame = tk.Frame(root, bg="#1f1f1f")
-btn_frame.pack(pady=(0, 10))
+btn_frame.pack(pady=(0, 8))
 
 tk.Button(btn_frame, text="Send", command=lambda: send_text_command(), font=("Segoe UI", 10),
-          bg="#444", fg="#FFF", width=10).grid(row=0, column=0, padx=10)
+          bg="#444", fg="#FFF", width=8).grid(row=0, column=0, padx=6)
 
 tk.Button(btn_frame, text="🎤 Listen", command=lambda: send_voice_command(), font=("Segoe UI", 10),
-          bg="#444", fg="#FFF", width=10).grid(row=0, column=1, padx=10)
+          bg="#444", fg="#FFF", width=8).grid(row=0, column=1, padx=6)
 
 live_btn = tk.Button(btn_frame, text="🟢 Google STT", command=lambda: toggle_google_mode(),
-                     font=("Segoe UI", 10), bg="#444", fg="#FFF", width=14)
-live_btn.grid(row=0, column=2, padx=10)
-
-model_var = tk.StringVar(value="GPT-4")
-model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
-                              values=["GPT-4", "Auto", "Local (Mistral)"])
-model_selector.pack(pady=(0, 10))
-model_selector.configure(width=20)
+                     font=("Segoe UI", 9), bg="#444", fg="#FFF", width=12)
+live_btn.grid(row=0, column=2, padx=6)
 
 interview_btn = tk.Button(root, text="🎙️ Interview Mode: Off", command=toggle_interview_mode,
-                          font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
-interview_btn.pack(pady=(0, 10))
+                          font=("Segoe UI", 9), bg="#555", fg="#fff", relief="flat")
+interview_btn.pack(pady=(0, 8))
 
 # Interview Audio Source Radio Buttons
 interview_audio_frame = tk.Frame(root, bg="#1f1f1f")
@@ -232,18 +226,6 @@ for mode, label in [("mic", "Mic"), ("system", "System")]:
                          font=("Segoe UI", 9), bg="#1f1f1f", fg="#fff",
                          activebackground="#2a2a2a", selectcolor="#444")
     btn.pack(side="left", padx=6)
-    
-# === Mode Toggle ===
-mode_var = tk.StringVar(value="Chat")  # Default is Chat mode
-
-def toggle_mode():
-    current = mode_var.get()
-    mode_var.set("Command" if current == "Chat" else "Chat")
-    mode_btn.config(text=f"🧠 Mode: {mode_var.get()}")
-
-mode_btn = tk.Button(root, text=f"🧠 Mode: {mode_var.get()}", command=toggle_mode,
-                     font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
-mode_btn.pack(pady=(0, 10))
 
 def toggle_conversation_mode():
     if not conversation_active[0]:
@@ -301,6 +283,24 @@ for mode, label in [("mic", "Mic Only"), ("system", "System Only"), ("both", "Bo
                          activebackground="#2a2a2a", selectcolor="#444")
     btn.pack(side="left", padx=6)
 
+# === Mode Toggle ===
+mode_var = tk.StringVar(value="Chat")  # Default is Chat mode
+
+def toggle_mode():
+    current = mode_var.get()
+    mode_var.set("Command" if current == "Chat" else "Chat")
+    mode_btn.config(text=f"🧠 Mode: {mode_var.get()}")
+
+mode_btn = tk.Button(root, text=f"🧠 Mode: {mode_var.get()}", command=toggle_mode,
+                     font=("Segoe UI", 10), bg="#555", fg="#fff", relief="flat")
+mode_btn.pack(pady=(0, 8))
+
+model_var = tk.StringVar(value="GPT-4")
+model_selector = ttk.Combobox(root, textvariable=model_var, state="readonly",
+                              values=["GPT-4", "Auto", "Local (Mistral)"])
+model_selector.pack(pady=(0, 8))
+model_selector.configure(width=18)
+
 # === Transparency Slider ===
 def on_alpha_change(value):
     alpha = float(value)
@@ -332,7 +332,7 @@ def show_floating_response(text, popup_id=1):
     line_count = text.count('\n') + 1
     line_height = 55
     base_height = 100 + (line_count * line_height)
-    max_height = 800
+    max_height = 700
     default_height = min(base_height, max_height)
 
     px = START_X + col * (POPUP_WIDTH + COL_SPACING)
