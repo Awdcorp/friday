@@ -48,7 +48,7 @@ def start_interview_mode(update_text_callback, response_callback, profile="softw
             print("[interview_handler] ⚠️ Skipped filler or short input.")
             return
 
-        update_text_callback([], "", f"🧠 Final: {transcript}")
+        ##update_text_callback([], "", f"🧠 Final: {transcript}")
 
         def run(transcript=transcript):
             print("\n[interview_handler] 🧠 Starting GPT processing thread...")

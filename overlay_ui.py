@@ -28,7 +28,7 @@ interview_active = [False]
 # === Main Window ===
 root = tk.Tk()
 root.title("Friday Assistant")  # 🖼️ Change app window title here
-root.geometry("400x550+100+500")  # 📏 Change window size & initial position here
+root.geometry("400x500+1200+200")  # 📏 Change window size & initial position here
 root.configure(bg='#1f1f1f')  # 🎨 Main background color of the app
 root.attributes("-topmost", True)
 root.attributes("-alpha", 0.9)  # 🪟 Window transparency (0.0 to 1.0)
@@ -43,9 +43,9 @@ last_main_position = [None]
 
 # === Popup Layout Constants ===
 POPUP_WIDTH = 420
-POPUP_HEIGHT = 700
-START_X = 100
-START_Y = 100
+POPUP_HEIGHT = 600
+START_X = 50
+START_Y = 50
 COL_SPACING = 100    
 ROW_SPACING = 20
 MAX_COLS = 2 # Controls how many floating popups are allowed side by side
@@ -164,9 +164,9 @@ def restore_main():
         alpha_frame.pack(pady=(0, 10))
 
         if last_main_position[0]:
-            root.geometry(f"400x550+{last_main_position[0][0]}+{last_main_position[0][1]}")
+            root.geometry(f"400x500+{last_main_position[0][0]}+{last_main_position[0][1]}")
         else:
-            root.geometry("400x550+100+500")  # fallback
+            root.geometry("400x500+1200+200")  # fallback
         main_minimized[0] = False
         for popup, _ in minimized_popups:
             if popup.winfo_exists():
@@ -332,7 +332,7 @@ def show_floating_response(text, popup_id=1):
     line_count = text.count('\n') + 1
     line_height = 55
     base_height = 100 + (line_count * line_height)
-    max_height = 900
+    max_height = 800
     default_height = min(base_height, max_height)
 
     px = START_X + col * (POPUP_WIDTH + COL_SPACING)
@@ -385,6 +385,16 @@ def show_floating_response(text, popup_id=1):
                              bg="#202020", fg="white", relief="flat", bd=0)
     btn_minimize.pack(side="right", padx=(4, 2))
 
+    def copy_to_clipboard():
+        root.clipboard_clear()
+        root.clipboard_append(text)
+        root.update()
+        print("📋 Copied popup text to clipboard")
+
+    btn_copy = tk.Button(titlebar, text="📋", font=("Segoe UI", 9), command=copy_to_clipboard,
+                        bg="#202020", fg="white", relief="flat", bd=0)
+    btn_copy.pack(side="right", padx=(2, 2))
+    
     def popup_drag_start(e): popup._drag_offset = (e.x, e.y)
     def popup_drag_move(e):
         dx, dy = popup._drag_offset

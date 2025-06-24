@@ -47,7 +47,7 @@ client = speech.SpeechClient()
 config = speech.RecognitionConfig(
     encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
     sample_rate_hertz=RATE,
-    language_code="en-IN",  # use 'en-IN' for Hinglish support
+    language_code="en-IN",
     enable_automatic_punctuation=True,
     model="default"
 )
@@ -63,10 +63,10 @@ SILENCE_THRESHOLD = 45         # require 45s of silence
 
 # === Flags and State
 is_listening = False
+restart_requested = False
 stream_thread = None
 stream_start_time = None
 last_final_transcript_time = None
-
 
 def audio_generator(buff):
     while is_listening:
@@ -75,20 +75,11 @@ def audio_generator(buff):
             return
         yield speech.StreamingRecognizeRequest(audio_content=chunk)
 
-
 def whisper_transcribe_buffer(audio_bytes):
-    """
-    Replace this with actual Whisper transcription logic.
-    This placeholder just returns a dummy string.
-    """
     return "[Whisper transcription placeholder]"
 
-
 def stream_monitor(update_callback, command_callback):
-    """
-    Background thread to monitor stream age and decide safe restart.
-    """
-    global stream_start_time, last_final_transcript_time, is_listening
+    global stream_start_time, last_final_transcript_time, is_listening, restart_requested
 
     while is_listening:
         time.sleep(5)
@@ -99,7 +90,8 @@ def stream_monitor(update_callback, command_callback):
         if stream_age > SAFE_RESTART_CHECK:
             if silence_gap > SILENCE_THRESHOLD:
                 print("🔁 Restarting STT stream (safe silence detected)")
-                is_listening = False  # This triggers restart
+                restart_requested = True
+                is_listening = False
                 break
             elif stream_age > (MAX_STREAM_DURATION - 10):
                 print("⚠️ No silence, capturing buffer before forced STT restart...")
@@ -109,9 +101,9 @@ def stream_monitor(update_callback, command_callback):
                     print(f"🧠 (Whisper Fallback): {whisper_text}")
                     update_callback([], "", f"🧠 Whisper: {whisper_text}")
                     command_callback(whisper_text)
+                restart_requested = True
                 is_listening = False
                 break
-
 
 def listen_loop(update_callback, command_callback):
     global is_listening, stream_start_time, last_final_transcript_time
@@ -168,7 +160,7 @@ def listen_loop(update_callback, command_callback):
                 if transcript:
                     command_callback(transcript)
             else:
-                print(f"💬 Interim: {transcript}")
+                ##print(f"💬 Interim: {transcript}") //keep this commented important for debugging
                 update_callback([], "", f"💬 {transcript}")
 
     except Exception as e:
@@ -180,29 +172,32 @@ def listen_loop(update_callback, command_callback):
         p.terminate()
         update_callback([], "", "🛑 System STT stopped")
 
-
 def start_system_listener(update_callback, command_callback):
-    global is_listening, stream_thread
+    global is_listening, stream_thread, restart_requested
 
     if is_listening:
         print("⛔ System STT already running")
         return
 
     is_listening = True
+    restart_requested = False
 
     def run():
+        global is_listening
         listen_loop(update_callback, command_callback)
-        print("♻️ STT stream exited — restarting new session if needed...")
-        start_system_listener(update_callback, command_callback)  # ✅ Always restart
+        should_restart = restart_requested
+        is_listening = False
+        print("♻️ STT stream exited — checking if restart needed...")
+        if should_restart:
+            print("🔁 Restarting system STT...")
+            start_system_listener(update_callback, command_callback)
+        else:
+            print("🛑 System STT fully stopped.")
 
     stream_thread = threading.Thread(target=run)
     stream_thread.start()
 
 def capture_system_audio(duration_seconds=5):
-    """
-    Captures system audio for a fixed duration and returns raw PCM bytes.
-    Used by whisper fallback before forced STT restarts.
-    """
     print(f"🎧 Capturing {duration_seconds} sec system audio sample...")
 
     p = pyaudio.PyAudio()
@@ -225,7 +220,6 @@ def capture_system_audio(duration_seconds=5):
     p.terminate()
 
     return b"".join(frames)
-
 
 def stop_system_listener():
     global is_listening

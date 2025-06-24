@@ -54,7 +54,7 @@ def get_interview_context_string():
     print(f"[interview_context] 🧾 Entries: {len(INTERVIEW_HISTORY)}")
     print(f"[interview_context] 📝 Word count: {len(result.split())}")
     print("──────────────── Context Preview ───────────────")
-    print(result[:500] + ("\n... [truncated]" if len(result) > 500 else ""))
+    print(result[:100] + ("\n... [truncated]" if len(result) > 100 else ""))
     print("────────────────────────────────────────────────")
 
     return result

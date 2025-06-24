@@ -49,7 +49,7 @@ Answer as Friday.
 
     print("[ask_gpt_interview] 🧾 Final prompt built.")
     print("──────────────── Prompt Preview ────────────────")
-    print(full_prompt[:800] + ("\n... [truncated]" if len(full_prompt) > 800 else ""))
+    print(full_prompt[:120] + ("\n... [truncated]" if len(full_prompt) > 120 else ""))
     print("────────────────────────────────────────────────")
 
     try:
@@ -65,7 +65,7 @@ Answer as Friday.
         reply = response.choices[0].message.content.strip()
         print("[ask_gpt_interview] ✅ GPT responded successfully.")
         print("──────────────── GPT Output Preview ─────────────")
-        print(reply[:500] + ("\n... [truncated]" if len(reply) > 500 else ""))
+        print(reply[:120] + ("\n... [truncated]" if len(reply) > 120 else ""))
         print("─────────────────────────────────────────────────")
         return reply
 

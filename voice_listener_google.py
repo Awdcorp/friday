@@ -28,6 +28,7 @@ streaming_config = speech.StreamingRecognitionConfig(
 microphone_stream = None
 stream_thread = None
 is_listening = False
+restart_requested = False
 last_final_transcript = ""
 stream_start_time = None
 last_final_transcript_time = None
@@ -106,9 +107,8 @@ def capture_mic_audio(duration_seconds=5):
     return b"".join(frames)
 
 # === Monitor Thread for Restart
-
 def stream_monitor(update_callback, command_callback):
-    global stream_start_time, last_final_transcript_time, is_listening
+    global stream_start_time, last_final_transcript_time, is_listening, restart_requested
 
     while is_listening:
         time.sleep(5)
@@ -119,6 +119,7 @@ def stream_monitor(update_callback, command_callback):
         if stream_age > SAFE_RESTART_CHECK:
             if silence_gap > SILENCE_THRESHOLD:
                 print("🔁 Restarting Mic STT stream (safe silence detected)")
+                restart_requested = True
                 is_listening = False
                 break
             elif stream_age > (MAX_STREAM_DURATION - 10):
@@ -129,6 +130,7 @@ def stream_monitor(update_callback, command_callback):
                     print(f"🧠 (Whisper Fallback): {whisper_text}")
                     update_callback([], "", f"🧠 Whisper: {whisper_text}")
                     command_callback(whisper_text)
+                restart_requested = True
                 is_listening = False
                 break
 
@@ -174,7 +176,7 @@ def listen_loop(update_callback, command_callback):
                         if isinstance(response, str) and response.strip():
                             update_callback([], "", response)
                 else:
-                    print(f"✏️ Interim: {cleaned}")
+                    ##print(f"✏️ Interim: {cleaned}") //keep this commented important for debugging
                     update_callback([], "", f"💬 {cleaned}")
 
         except Exception as e:
@@ -184,22 +186,29 @@ def listen_loop(update_callback, command_callback):
 
 # === Public API
 def start_google_listening(update_callback, command_callback):
-    global is_listening, stream_thread
+    global is_listening, stream_thread, restart_requested
 
     if is_listening:
         print("⛔ Already listening (Google STT)")
         return
 
     is_listening = True
+    restart_requested = False
 
-    def wrapped_loop():
+    def run():
+        global is_listening, restart_requested
         listen_loop(update_callback, command_callback)
-        global is_listening
+        should_restart = restart_requested
+        restart_requested = False
         is_listening = False
-        print("♻️ Mic STT stream exited — restarting new session...")
-        start_google_listening(update_callback, command_callback)
+        print("♻️ Mic STT stream exited — checking if restart needed...")
+        if should_restart:
+            print("🔁 Restarting mic STT...")
+            start_google_listening(update_callback, command_callback)
+        else:
+            print("🛑 Mic STT fully stopped.")
 
-    stream_thread = threading.Thread(target=wrapped_loop)
+    stream_thread = threading.Thread(target=run)
     stream_thread.start()
 
 def stop_google_listening():
