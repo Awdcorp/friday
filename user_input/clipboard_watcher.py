@@ -8,8 +8,8 @@ On meaningful copy (code, instruction, etc.), passes to intent_classifier.
 import pyperclip
 import time
 import threading
-from .intent_classifier import classify_clipboard_content
-from .context_tracker import update_last_clipboard
+from task_engine.intent_classifier import classify_clipboard_content
+from task_engine.context_tracker import update_last_clipboard
 import logging
 
 # === Config ===

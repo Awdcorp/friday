@@ -6,7 +6,7 @@ Detects code patches, commands, file instructions, function edits, etc.
 """
 
 import re
-from ..agent_core.task_router import route_task
+from .task_router import route_task
 
 # === Patterns to detect basic task types ===
 CODE_DEF_PATTERN = re.compile(r'^\s*(def|class)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(?.*\)?\s*:', re.MULTILINE)

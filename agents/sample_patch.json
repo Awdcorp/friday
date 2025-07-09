@@ -1,0 +1,15 @@
+{
+  "file": "fibonacci.cpp",
+  "patches": [
+    {
+      "action": "insert_below_match_block",
+      "match_block": [
+        "        printf(\"%d \", next);",
+        "    }"
+      ],
+      "lines": [
+        "    // Inserted after the loop print"
+      ]
+    }
+  ]
+}
