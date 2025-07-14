@@ -28,32 +28,15 @@ interview_state = {
     "listener_source": "system"  # Track active listener type
 }
 
-# === Skip filters for empty/filler inputs
-def should_skip(transcript):
-    if not transcript:
-        return True
-    if len(transcript.strip().split()) < 3:
-        return True
-    fillers = ["hmm", "okay", "ok", "alright", "yes", "no", "fine", "sure"]
-    if any(f in transcript.lower() for f in fillers):
-        return True
-    return False
-
 # === Core Listener Setup ===
 def start_interview_mode(update_text_callback, response_callback, profile="software_engineer", source="system"):
     def on_transcript(transcript):
         print(f"\n[interview_handler] 🎧 Transcript Received: {transcript}")
 
-        if should_skip(transcript):
-            print("[interview_handler] ⚠️ Skipped filler or short input.")
-            return
-
-        ##update_text_callback([], "", f"🧠 Final: {transcript}")
-
         def run(transcript=transcript):
             print("\n[interview_handler] 🧠 Starting GPT processing thread...")
 
-            # === If software_engineer, run full intent logic
+            # === For software engineer profile, run intent detection logic
             if profile == "software_engineer":
                 anchor_q = interview_state.get("program_anchor_question")
                 anchor_a = interview_state.get("program_anchor_answer")
@@ -80,10 +63,9 @@ def start_interview_mode(update_text_callback, response_callback, profile="softw
                     })
                     popup_id = 1
 
-                elif follow_up and interview_state["program_thread_active"]:
+                elif intent == "program_follow_up" and interview_state["program_thread_active"]:
                     interview_state["followup_count"] += 1
                     popup_id = 2
-                    replace_popup = True
 
                     if interview_state["followup_count"] > 3:
                         interview_state.update({
@@ -103,16 +85,11 @@ def start_interview_mode(update_text_callback, response_callback, profile="softw
                         "program_anchor_answer": None
                     })
 
-                if intent == "clarify":
-                    corrected_text += " Please clarify what you mean in the context of programming."
-
             else:
-                # === Non-software profiles: Skip intent detection and logic
                 print("[interview_handler] 🧾 Skipping intent logic for non-programming profile.")
                 corrected_text = transcript
-                intent = "question"
-                replace_popup = True
                 popup_id = 1
+                replace_popup = True
 
             # Step 3: Ask GPT
             print("[interview_handler] 🚀 Sending prompt to GPT...")
@@ -151,7 +128,6 @@ def start_interview_mode(update_text_callback, response_callback, profile="softw
 
 def stop_interview_mode():
     print("[interview_handler] 🛑 Interview Mode Deactivated")
-
     if interview_state.get("listener_source") == "mic":
         stop_mic_listener()
     else:

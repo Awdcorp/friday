@@ -19,16 +19,20 @@ def classify_combined_input(combined_input, base_input=None, buffer_only=None):
     """
     try:
         system_prompt = (
-            "You are a helpful assistant that classifies whether an input is:\n"
-            "1. A new standalone question (different from the previous one)\n"
-            "2. A follow-up or continuation to the previous question\n"
-            "3. A rephrased or similar version of the previous question\n"
-            "4. Irrelevant or incomplete\n\n"
-            "Be liberal in identifying follow-ups when:\n"
-            "- The base question is still in context\n"
-            "- The fragment seems to elaborate or ask something related\n\n"
-            "Return a JSON with only these keys:\n"
-            "- intent: [new_question, follow_up, similar_to_previous, irrelevant_or_incomplete]\n"
+            "You are an intelligent intent classifier for a technical interview assistant.\n\n"
+            "Your job is to detect whether the input is a new question, a follow-up, or a request to write or modify a program.\n\n"
+            "Possible values for `intent`:\n"
+            "- new_question: A standalone theory/conceptual question.\n"
+            "- follow_up: A continuation or elaboration of the previous question.\n"
+            "- program_start: A new request to write or implement a program (e.g., 'Write a C++ program to...').\n"
+            "- program_follow_up: A modification, extension, or clarification of an already written program (e.g., 'What if input is null?', 'Can you do it in recursion?').\n"
+            "- similar_to_previous: A rephrasing of the last question.\n"
+            "- irrelevant_or_incomplete: Fragmented, unclear, or filler content.\n\n"
+            "Be liberal in identifying programming-related follow-ups — vague phrases like 'optimize this', 'now do it in Java', 'what if it's empty' also count.\n\n"
+            "Return a JSON object with:\n"
+            "- intent\n"
+            "- is_programming (if the question detected is saying to write a program, return True, else False)\n"
+            "- topic (if relevant)\n"
             "- is_question\n"
             "- is_follow_up\n"
             "- is_similar"
@@ -52,8 +56,9 @@ Current Input (combined fragment): "{combined_input.strip()}"
 
         try:
             parsed = json.loads(output)
+            parsed.setdefault("is_programming", False)
+            parsed.setdefault("topic", None)
 
-            # Add reference info for debugging/logging
             parsed["base_input"] = base_input or None
             parsed["current_input"] = combined_input.strip()
             parsed["buffer_only"] = buffer_only.strip() if buffer_only else None
@@ -103,10 +108,10 @@ def detect_question(input_text):
             combined_input = input_text
             result = classify_combined_input(combined_input, last_question, buffer_only=input_text)
 
-            if result.get("intent") == "new_question":
+            if result.get("intent") in {"new_question", "program_start"}:
                 last_question = combined_input.strip().rstrip("?") + "?"
                 input_chain = []
-            elif result.get("intent") == "follow_up":
+            elif result.get("intent") in {"follow_up", "program_follow_up"}:
                 last_question = (last_question or "") + " " + combined_input
                 last_question = last_question.strip().rstrip("?") + "?"
                 input_chain = []
@@ -123,10 +128,10 @@ def detect_question(input_text):
     if total_words >= WORD_TRIGGER_THRESHOLD:
         result = classify_combined_input(combined_input, last_question, buffer_only=buffer_only)
 
-        if result.get("intent") == "new_question":
+        if result.get("intent") in {"new_question", "program_start"}:
             last_question = combined_input.strip().rstrip("?") + "?"
             input_chain = []
-        elif result.get("intent") == "follow_up":
+        elif result.get("intent") in {"follow_up", "program_follow_up"}:
             last_question = (last_question or "") + " " + combined_input
             last_question = last_question.strip().rstrip("?") + "?"
             input_chain = []

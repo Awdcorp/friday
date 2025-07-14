@@ -1,17 +1,18 @@
-ultralytics
-opencv-python
 easyocr
+keyboard
+numpy
 openai
+opencv-python
 PyQt5
-pyttsx3
-speechrecognition
 pyautogui
 pygetwindow
-keyboard
-sounddevice
-webrtcvad
-requests
 pyaudio
+pyttsx3
+sounddevice
+speechrecognition
+ultralytics
+python-dotenv
+google-cloud-speech
 
 # ✅ HOW TO START FRIDAY (Current Stage)
 # 1. Make sure your webcam is connected
@@ -22,7 +23,7 @@ pyaudio
 #   pip install git+https://github.com/openai/whisper.git
 #
 # 3. Run the assistant:
-#    python main.py
+#    python main_brain.py
 #
 # This will:
 # - Launch the overlay UI

@@ -3,16 +3,42 @@ import json
 
 # Sample test sequence
 test_fragments = [
-    "what is pointer",
-    "hmm",
-    "and how it",
-    "will be used",
+    # Simple standalone question
+    "what is a pointer",
+
+    # Filler - should be skipped or buffered
     "uh",
-    "define memory leak",
-    "can you explain",
-    "malloc",
-    "and how it works"
+
+    # Follow-up fragments, to be combined
+    "how does it work",
+    "in memory",
+
+    # New programming question
+    "write a C++ program",
+    "to reverse a linked list",
+
+    # Follow-up to program
+    "what if the input is empty",
+
+    # Unrelated or ambiguous fragment
+    "okay fine",
+
+    # Shift back to new concept
+    "explain memory leak",
+
+    # Another program
+    "implement binary search in Java",
+
+    # Follow-up again
+    "now do it for a sorted array of strings",
+
+    # End thread
+    "thanks, let's move on",
+
+    # New standalone
+    "what is virtual function"
 ]
+
 
 print("=== Testing Enhanced Question Detection ===\n")
 
