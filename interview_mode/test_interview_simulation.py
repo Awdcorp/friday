@@ -1,4 +1,4 @@
-from question_detection import detect_question
+from question_detection import detect_question, question_history
 import json
 
 # Sample test sequence
@@ -39,29 +39,39 @@ test_fragments = [
     "what is virtual function"
 ]
 
-
-print("=== Testing Enhanced Question Detection ===\n")
+print("=== 🧠 Testing Enhanced Question Detection ===\n")
 
 for i, fragment in enumerate(test_fragments, 1):
     print(f"[Fragment {i}] \"{fragment}\" →")
     result = detect_question(fragment)
 
-    # Show what was sent to GPT for classification
-    if result.get("current_input"):
-        print("📤 Input sent to GPT:")
-        print(f"   Current Input : {result['current_input']}")
-        print(f"   Base Question : {result['base_input'] or 'None'}")
+    # Print classification input
+    if result.get("current_input") is not None:
+        print("📤 Sent to GPT:")
+        print(f"   ➤ Current Input : {result['current_input']}")
+        print(f"   ➤ Base Question : {result['base_input'] or 'None'}")
 
+    # Print classification result
     if result["intent"] == "waiting_for_more_input":
-        note = result.get("note", "")
+        print("⏳ Waiting for more fragments...")
         print(json.dumps(result, indent=2))
-        if note:
-            print(f"🟡 Skipped or buffered due to: {note}")
-        else:
-            print(f"🟡 Waiting: {result['fragments_collected']} fragments, {result['words_collected']} words")
+        if result.get("note"):
+            print(f"🟡 Note: {result['note']}")
+    elif result["intent"] == "parse_error":
+        print("❌ Parse Error from GPT:")
+        print(result["raw_output"])
+    elif result["intent"] == "error":
+        print("🚨 Error:")
+        print(result["error"])
     else:
         print("✅ Classified:")
         print(json.dumps(result, indent=2))
-        if result.get("intent") == "new_question":
-            print(f"🧠 Updated last_question: {result.get('new_question_text')}")
-    print("------------------------------------------------------------")
+
+    # Show latest root question for clarity
+    if question_history:
+        last = question_history[-1]
+        print(f"🧠 Latest Question Stored: {last['question']}")
+        if last.get("is_follow_up"):
+            print(f"   ↪ Follow-up to: {last.get('link_to', '[Unknown]')}")
+
+    print("-" * 60)
