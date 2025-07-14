@@ -2,6 +2,10 @@ import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
+import logging
+
+# === Setup minimal logger ===
+logging.basicConfig(level=logging.INFO, format="🔍 %(message)s")
 
 # === Load OpenAI API key ===
 load_dotenv()
@@ -9,7 +13,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # === Internal state ===
 last_question = None  # Tracks the latest confirmed question
-last_root_question = None  # ✅ Tracks the stable root for base_input
+last_base_chain  = None  # ✅ Tracks the stable root for base_input
 input_chain = []  # Stores buffered input fragments
 question_history = []  # Stores rolling Q&A memory with follow-up tracking
 WORD_TRIGGER_THRESHOLD = 2  # Minimum number of words to trigger classification
@@ -126,10 +130,12 @@ def detect_question(input_text):
     Buffers input fragments and triggers classification when enough input is received.
     Tracks rolling history of past Q&A to aid in intent detection.
     """
-    global input_chain, question_history, last_question, last_root_question
+    global input_chain, question_history, last_question, last_base_chain
 
     input_text = input_text.strip()
     word_count = len(input_text.split())
+
+    logging.info(f"[detect_question 🎙️ Fragment Received] → \"{input_text}\" \"{question_history}\"")
 
     # === Skip filler fragments ===
     filler_phrases = {"hmm", "uh", "uhh", "uhhh", "let me think", "ah", "ahh"}
@@ -148,15 +154,21 @@ def detect_question(input_text):
             combined_input = input_text
             result = classify_combined_input(
                 combined_input,
-                base_input=last_root_question,
+                base_input=last_base_chain,
                 buffer_only=input_text,
                 recent_history=question_history[-MAX_HISTORY:]
             )
 
             if result.get("intent") in {"new_question", "program_start", "follow_up", "program_follow_up"}:
                 input_chain = []
+
+                # ✅ Add ? only for new/program start
+                question_text = combined_input.strip().rstrip("?")
+                if result["intent"] in {"new_question", "program_start"}:
+                    question_text += "?"
+
                 entry = {
-                    "question": combined_input.strip().rstrip("?") + "?",
+                    "question": question_text,
                     "answer": None,
                     "topic": result.get("topic", None),
                     "is_follow_up": result["intent"] in {"follow_up", "program_follow_up"},
@@ -164,8 +176,13 @@ def detect_question(input_text):
                 }
                 question_history.append(entry)
                 last_question = entry["question"]
+
+                # ✅ Update cumulative base chain
                 if result["intent"] in {"new_question", "program_start"}:
-                    last_root_question = entry["question"]  # ✅ Reset thread root
+                    last_base_chain = entry["question"]
+                elif result["intent"] in {"follow_up", "program_follow_up"}:
+                    last_base_chain = (last_base_chain or "") + " " + entry["question"]
+
                 return result
 
             return result
@@ -180,15 +197,21 @@ def detect_question(input_text):
     if total_words >= WORD_TRIGGER_THRESHOLD:
         result = classify_combined_input(
             combined_input,
-            base_input=last_root_question,
+            base_input=last_base_chain,
             buffer_only=buffer_only,
             recent_history=question_history[-MAX_HISTORY:]
         )
 
         if result.get("intent") in {"new_question", "program_start", "follow_up", "program_follow_up"}:
             input_chain = []
+
+            # ✅ Add ? only for new/program start
+            question_text = combined_input.strip().rstrip("?")
+            if result["intent"] in {"new_question", "program_start"}:
+                question_text += "?"
+
             entry = {
-                "question": combined_input.strip().rstrip("?") + "?",
+                "question": question_text,
                 "answer": None,
                 "topic": result.get("topic", None),
                 "is_follow_up": result["intent"] in {"follow_up", "program_follow_up"},
@@ -196,8 +219,13 @@ def detect_question(input_text):
             }
             question_history.append(entry)
             last_question = entry["question"]
+
+            # ✅ Update cumulative base chain
             if result["intent"] in {"new_question", "program_start"}:
-                last_root_question = entry["question"]  # ✅ Reset anchor
+                last_base_chain = entry["question"]
+            elif result["intent"] in {"follow_up", "program_follow_up"}:
+                last_base_chain = (last_base_chain or "") + " " + entry["question"]
+
             return result
 
         return result
@@ -209,3 +237,4 @@ def detect_question(input_text):
         "fragments_collected": len(input_chain),
         "words_collected": total_words
     }
+
