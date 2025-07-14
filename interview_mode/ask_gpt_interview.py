@@ -17,10 +17,6 @@ def ask_gpt_interview(question, profile="software_engineer"):
     """
     Sends the interview question + recent context to GPT.
     Returns GPT's answer.
-    
-    Args:
-        question (str): The interview question.
-        profile (str): The GPT role profile key (e.g., 'software_engineer').
     """
     print(f"\n[ask_gpt_interview] 📥 Received question: \"{question}\"")
     print(f"[ask_gpt_interview] 🧑‍💻 Using profile: {profile}")
@@ -29,14 +25,34 @@ def ask_gpt_interview(question, profile="software_engineer"):
     context_str = get_interview_context_string()
     print("[ask_gpt_interview] 📚 Context length:", len(context_str.split()), "words")
 
-    # Step 2: Load prompt for selected profile
+    # Step 2: Load persona prompt
     persona_prompt = PROMPT_PROFILES.get(profile)
     if not persona_prompt:
         print(f"[ask_gpt_interview] ⚠️ Unknown profile: {profile}. Falling back to 'software_engineer'.")
         persona_prompt = PROMPT_PROFILES["software_engineer"]
 
-    # Step 3: Build the full prompt
+    # Step 3: Add follow-up context if in programming thread
+    from .interview_mode_handler import interview_state  # ✅ Lazy import to avoid circular import
+
+    anchor_context = ""
+    if (
+        profile == "software_engineer"
+        and interview_state.get("program_thread_active")
+        and interview_state.get("followup_count", 0) > 0
+    ):
+        anchor_q = interview_state.get("program_anchor_question")
+        anchor_a = interview_state.get("program_anchor_answer")
+        if anchor_q and anchor_a:
+            anchor_context = f"""
+This is a follow-up to the previous programming question:
+Q: {anchor_q}
+A: {anchor_a}
+"""
+
+    # Step 4: Build the full prompt
     full_prompt = f"""{persona_prompt}
+
+{anchor_context.strip()}
 
 Prior Q&A context:
 {context_str}
@@ -53,7 +69,6 @@ Answer as Friday.
     print("────────────────────────────────────────────────")
 
     try:
-        # Step 4: Call OpenAI API
         print("[ask_gpt_interview] 🚀 Sending to GPT (model: gpt-3.5-turbo)...")
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -61,7 +76,6 @@ Answer as Friday.
             temperature=0.7
         )
 
-        # Step 5: Extract response
         reply = response.choices[0].message.content.strip()
         print("[ask_gpt_interview] ✅ GPT responded successfully.")
         print("──────────────── GPT Output Preview ─────────────")

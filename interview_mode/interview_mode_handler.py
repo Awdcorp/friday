@@ -54,7 +54,7 @@ def start_interview_mode(update_text_callback, response_callback, profile="softw
                 is_programming = result.get("is_programming", False)
                 topic = result.get("topic", "")
                 corrected_text = result.get("current_input", transcript)
-                is_follow_up = result.get("follow_up", False)
+                is_follow_up = result.get("is_follow_up", False)
 
                 print(f"[interview_handler] 🧠 Intent: {intent} | Programming: {is_programming} | Topic: {topic} | Follow-up: {is_follow_up}")
 

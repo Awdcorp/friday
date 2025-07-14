@@ -15,18 +15,16 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 last_question = None  # Tracks the latest confirmed question
 last_base_chain  = None  # ✅ Tracks the stable root for base_input
 input_chain = []  # Stores buffered input fragments
-question_history = []  # Stores rolling Q&A memory with follow-up tracking
 WORD_TRIGGER_THRESHOLD = 2  # Minimum number of words to trigger classification
-MAX_HISTORY = 3  # Max questions to include in context for GPT
 
 
-def classify_combined_input(combined_input, base_input=None, buffer_only=None, recent_history=None):
+def classify_combined_input(combined_input, base_input=None, buffer_only=None):
     """
-    Classifies the combined input using GPT with optional base and rolling history.
-    Returns a JSON-compatible dictionary with intent, flags, and debug fields.
+    Classifies the combined input using GPT with optional base context.
+    Returns a JSON-compatible dictionary with intent and debug fields.
     """
 
-    # === Few-shot examples to guide GPT more reliably ===
+    # === Few-shot examples to guide GPT ===
     examples = """
 Examples:
 Base: None
@@ -46,21 +44,7 @@ Current: Now do it using recursion.
 → intent: program_follow_up
 """
 
-    # === Format recent history for GPT (show follow-up links) ===
-    history_str = ""
-    if recent_history:
-        context_lines = []
-        for i, q in enumerate(recent_history):
-            q_num = f"Q{i+1}"
-            if q.get("is_follow_up"):
-                q_line = f"{q_num} (follow-up to previous): {q['question']}"
-            else:
-                q_line = f"{q_num}: {q['question']}"
-            a_line = f"A{i+1}: {q.get('answer', '[not answered]')}"
-            context_lines.extend([q_line, a_line])
-        history_str = "\nRecent Context:\n" + "\n".join(context_lines)
-
-    # === Build the final system prompt ===
+    # === Build the system prompt ===
     system_prompt = (
         "You are an intelligent intent classifier for a technical interview assistant.\n\n"
         "Your job is to detect whether the input is a new question, a follow-up, or a request to write or modify a program.\n\n"
@@ -75,11 +59,11 @@ Current: Now do it using recursion.
         "Return a JSON object with:\n"
         "- intent\n"
         "- is_programming (if the question detected is saying to write a program, return True, else False)\n"
-        "- topic (if relevant)\n"
+        "- topic (what is the topic focus of the question)\n"
         "- is_question\n"
         "- is_follow_up\n"
         "- is_similar"
-        + examples + history_str
+        + examples
     )
 
     user_prompt = f"""
@@ -128,14 +112,14 @@ Current Input (combined fragment): "{combined_input.strip()}"
 def detect_question(input_text):
     """
     Buffers input fragments and triggers classification when enough input is received.
-    Tracks rolling history of past Q&A to aid in intent detection.
+    Tracks the current input and base chaining only.
     """
-    global input_chain, question_history, last_question, last_base_chain
+    global input_chain, last_question, last_base_chain
 
     input_text = input_text.strip()
     word_count = len(input_text.split())
 
-    logging.info(f"[detect_question 🎙️ Fragment Received] → \"{input_text}\" \"{question_history}\"")
+    logging.info(f"[detect_question 🎙️ Fragment Received] → \"{input_text}\"")
 
     # === Skip filler fragments ===
     filler_phrases = {"hmm", "uh", "uhh", "uhhh", "let me think", "ah", "ahh"}
@@ -147,7 +131,7 @@ def detect_question(input_text):
             "words_collected": sum(len(f.split()) for f in input_chain)
         }
 
-    # === Heuristic shortcut: detect likely questions immediately if alone ===
+    # === Heuristic shortcut for direct questions ===
     if word_count >= 3 and not input_chain:
         if input_text.lower().startswith(("what is", "define", "explain", "how does", "can you", "when does", "why does")):
             input_chain.append(input_text)
@@ -155,86 +139,77 @@ def detect_question(input_text):
             result = classify_combined_input(
                 combined_input,
                 base_input=last_base_chain,
-                buffer_only=input_text,
-                recent_history=question_history[-MAX_HISTORY:]
+                buffer_only=input_text
             )
 
             if result.get("intent") in {"new_question", "program_start", "follow_up", "program_follow_up"}:
                 input_chain = []
 
-                # ✅ Add ? only for new/program start
                 question_text = combined_input.strip().rstrip("?")
                 if result["intent"] in {"new_question", "program_start"}:
                     question_text += "?"
 
-                entry = {
-                    "question": question_text,
-                    "answer": None,
-                    "topic": result.get("topic", None),
-                    "is_follow_up": result["intent"] in {"follow_up", "program_follow_up"},
-                    "link_to": question_history[-1]["question"] if result["intent"] in {"follow_up", "program_follow_up"} and question_history else None
-                }
-                question_history.append(entry)
-                last_question = entry["question"]
+                last_question = question_text
 
-                # ✅ Update cumulative base chain
                 if result["intent"] in {"new_question", "program_start"}:
-                    last_base_chain = entry["question"]
+                    last_base_chain = question_text
                 elif result["intent"] in {"follow_up", "program_follow_up"}:
-                    last_base_chain = (last_base_chain or "") + " " + entry["question"]
+                    last_base_chain = (last_base_chain or "") + " " + question_text
+
+                print("\n[interview_intent]🧩 [Fragment] \"" + input_text + "\"")
+                print("🔗 Base     :", result.get("base_input") or "None")
+                print("📌 Intent   :", result.get("intent"),
+                      "| prog=" + str(result.get("is_programming")),
+                      "| follow=" + str(result.get("is_follow_up")))
+                print("🧠 Question :", last_question)
+                print("📎 Chain    :", last_base_chain)
 
                 return result
 
             return result
 
-    # === Buffer the current fragment ===
+    # === Buffer and wait ===
     input_chain.append(input_text)
     buffer_only = " ".join(input_chain)
     combined_input = buffer_only
     total_words = len(buffer_only.split())
 
-    # === Trigger GPT classification if buffer is long enough ===
     if total_words >= WORD_TRIGGER_THRESHOLD:
         result = classify_combined_input(
             combined_input,
             base_input=last_base_chain,
-            buffer_only=buffer_only,
-            recent_history=question_history[-MAX_HISTORY:]
+            buffer_only=buffer_only
         )
 
         if result.get("intent") in {"new_question", "program_start", "follow_up", "program_follow_up"}:
             input_chain = []
 
-            # ✅ Add ? only for new/program start
             question_text = combined_input.strip().rstrip("?")
             if result["intent"] in {"new_question", "program_start"}:
                 question_text += "?"
 
-            entry = {
-                "question": question_text,
-                "answer": None,
-                "topic": result.get("topic", None),
-                "is_follow_up": result["intent"] in {"follow_up", "program_follow_up"},
-                "link_to": question_history[-1]["question"] if result["intent"] in {"follow_up", "program_follow_up"} and question_history else None
-            }
-            question_history.append(entry)
-            last_question = entry["question"]
+            last_question = question_text
 
-            # ✅ Update cumulative base chain
             if result["intent"] in {"new_question", "program_start"}:
-                last_base_chain = entry["question"]
+                last_base_chain = question_text
             elif result["intent"] in {"follow_up", "program_follow_up"}:
-                last_base_chain = (last_base_chain or "") + " " + entry["question"]
+                last_base_chain = (last_base_chain or "") + " " + question_text
+
+            print("\n[interview_intent]🧩 [Fragment] \"" + input_text + "\"")
+            print("🔗 Base     :", result.get("base_input") or "None")
+            print("📌 Intent   :", result.get("intent"),
+                  "| prog=" + str(result.get("is_programming")),
+                  "| follow=" + str(result.get("is_follow_up")))
+            print("🧠 Question :", last_question)
+            print("📎 Chain    :", last_base_chain)
 
             return result
 
         return result
 
-    # === Still waiting for more fragments ===
     return {
         "intent": "waiting_for_more_input",
         "combined_input": buffer_only,
         "fragments_collected": len(input_chain),
         "words_collected": total_words
     }
-
