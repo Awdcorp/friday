@@ -13,7 +13,6 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # === Internal state ===
 last_question = None  # Tracks the latest confirmed question
-last_base_chain  = None  # ✅ Tracks the stable root for base_input
 input_chain = []  # Stores buffered input fragments
 WORD_TRIGGER_THRESHOLD = 2  # Minimum number of words to trigger classification
 
@@ -61,7 +60,7 @@ Current: Now do it using recursion.
         "- is_programming (if the question detected is saying to write a program, return True, else False)\n"
         "- topic (what is the topic focus of the question)\n"
         "- is_question\n"
-        "- is_follow_up\n"
+        "- is_follow_up (this applies for both kind of intent follow_up and program_follow_up)\n"
         "- is_similar"
         + examples
     )
@@ -112,9 +111,9 @@ Current Input (combined fragment): "{combined_input.strip()}"
 def detect_question(input_text):
     """
     Buffers input fragments and triggers classification when enough input is received.
-    Tracks the current input and base chaining only.
+    Uses the last detected question as base for follow-ups, but does NOT overwrite it with follow-ups.
     """
-    global input_chain, last_question, last_base_chain
+    global input_chain, last_question
 
     input_text = input_text.strip()
     word_count = len(input_text.split())
@@ -138,7 +137,7 @@ def detect_question(input_text):
             combined_input = input_text
             result = classify_combined_input(
                 combined_input,
-                base_input=last_base_chain,
+                base_input=last_question,
                 buffer_only=input_text
             )
 
@@ -148,13 +147,9 @@ def detect_question(input_text):
                 question_text = combined_input.strip().rstrip("?")
                 if result["intent"] in {"new_question", "program_start"}:
                     question_text += "?"
+                    last_question = question_text  # ✅ update only for new or program
 
-                last_question = question_text
-
-                if result["intent"] in {"new_question", "program_start"}:
-                    last_base_chain = question_text
-                elif result["intent"] in {"follow_up", "program_follow_up"}:
-                    last_base_chain = (last_base_chain or "") + " " + question_text
+                # ❌ Do not update for follow-up intents
 
                 print("\n[interview_intent]🧩 [Fragment] \"" + input_text + "\"")
                 print("🔗 Base     :", result.get("base_input") or "None")
@@ -162,7 +157,6 @@ def detect_question(input_text):
                       "| prog=" + str(result.get("is_programming")),
                       "| follow=" + str(result.get("is_follow_up")))
                 print("🧠 Question :", last_question)
-                print("📎 Chain    :", last_base_chain)
 
                 return result
 
@@ -177,7 +171,7 @@ def detect_question(input_text):
     if total_words >= WORD_TRIGGER_THRESHOLD:
         result = classify_combined_input(
             combined_input,
-            base_input=last_base_chain,
+            base_input=last_question,
             buffer_only=buffer_only
         )
 
@@ -187,13 +181,9 @@ def detect_question(input_text):
             question_text = combined_input.strip().rstrip("?")
             if result["intent"] in {"new_question", "program_start"}:
                 question_text += "?"
+                last_question = question_text  # ✅ update only if new root
 
-            last_question = question_text
-
-            if result["intent"] in {"new_question", "program_start"}:
-                last_base_chain = question_text
-            elif result["intent"] in {"follow_up", "program_follow_up"}:
-                last_base_chain = (last_base_chain or "") + " " + question_text
+            # ❌ Do not update for follow-up
 
             print("\n[interview_intent]🧩 [Fragment] \"" + input_text + "\"")
             print("🔗 Base     :", result.get("base_input") or "None")
@@ -201,7 +191,6 @@ def detect_question(input_text):
                   "| prog=" + str(result.get("is_programming")),
                   "| follow=" + str(result.get("is_follow_up")))
             print("🧠 Question :", last_question)
-            print("📎 Chain    :", last_base_chain)
 
             return result
 
@@ -213,3 +202,4 @@ def detect_question(input_text):
         "fragments_collected": len(input_chain),
         "words_collected": total_words
     }
+

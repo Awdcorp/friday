@@ -1,45 +1,20 @@
-from question_detection import detect_question, question_history
+from question_detection import detect_question
 import json
 
 # Sample test sequence
 test_fragments = [
-    # Simple standalone question
-    "what is a pointer",
-
-    # Filler - should be skipped or buffered
-    "uh",
-
-    # Follow-up fragments, to be combined
-    "how does it work",
-    "in memory",
-
-    # New programming question
-    "write a C++ program",
-    "to reverse a linked list",
-
-    # Follow-up to program
-    "what if the input is empty",
-
-    # Unrelated or ambiguous fragment
-    "okay fine",
-
-    # Shift back to new concept
-    "explain memory leak",
-
-    # Another program
-    "implement binary search in Java",
-
-    # Follow-up again
-    "now do it for a sorted array of strings",
-
-    # End thread
-    "thanks, let's move on",
-
-    # New standalone
-    "what is virtual function"
+    "Can you explain the difference between call by value and call by reference in C?",
+    "What is a pointer in C, and how is it used?",
+    "Can you tell me",            
+    "Write a program to find the factorial of a number.",
+    "Can you optimize it using recursion?",
+    "What if the number is zero?",
+    "What if input is negative?",
+    "What's the difference between stack and queue?",
+    "What are the risks of using malloc without checking the return value?"
 ]
 
-print("=== 🧠 Testing Enhanced Question Detection ===\n")
+print("=== 🧠 Testing Enhanced Question Detection (No History Mode) ===\n")
 
 for i, fragment in enumerate(test_fragments, 1):
     print(f"[Fragment {i}] \"{fragment}\" →")
@@ -49,7 +24,7 @@ for i, fragment in enumerate(test_fragments, 1):
     if result.get("current_input") is not None:
         print("📤 Sent to GPT:")
         print(f"   ➤ Current Input : {result['current_input']}")
-        print(f"   ➤ Base Question : {result['base_input'] or 'None'}")
+        print(f"   ➤ Base Input    : {result.get('base_input') or 'None'}")
 
     # Print classification result
     if result["intent"] == "waiting_for_more_input":
@@ -66,12 +41,5 @@ for i, fragment in enumerate(test_fragments, 1):
     else:
         print("✅ Classified:")
         print(json.dumps(result, indent=2))
-
-    # Show latest root question for clarity
-    if question_history:
-        last = question_history[-1]
-        print(f"🧠 Latest Question Stored: {last['question']}")
-        if last.get("is_follow_up"):
-            print(f"   ↪ Follow-up to: {last.get('link_to', '[Unknown]')}")
 
     print("-" * 60)
