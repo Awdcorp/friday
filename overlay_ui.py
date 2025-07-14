@@ -48,7 +48,7 @@ START_X = 50
 START_Y = 50
 COL_SPACING = 100    
 ROW_SPACING = 20
-MAX_COLS = 2 # Controls how many floating popups are allowed side by side
+MAX_COLS = 3 # Controls how many floating popups are allowed side by side
 
 # === Interview Audio Source Selector ===
 interview_source_var = tk.StringVar(value="system")
