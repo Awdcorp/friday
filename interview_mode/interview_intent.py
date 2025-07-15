@@ -6,7 +6,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def detect_interview_intent(transcript, anchor_question=None, anchor_answer=None):
     print(f"\n[interview_intent] 🧠 Enhanced Intent detection started...")
-    print(f"[interview_intent] 🗣️ Input transcript: \"{transcript}\"")
+    #print(f"[interview_intent] 🗣️ Input transcript: \"{transcript}\"")
 
     # Optional anchor context
     anchor_info = ""
@@ -62,13 +62,13 @@ Current message: "{transcript}"
         )
 
         content = response.choices[0].message.content.strip()
-        print("[interview_intent] 📩 Raw response:", content)
+        #print("[interview_intent] 📩 Raw response:", content)
 
         result = json.loads(content)
         return result
 
     except Exception as e:
-        print(f"[interview_intent] ❌ Error: {e}")
+        #print(f"[interview_intent] ❌ Error: {e}")
         return {
             "intent": "question",
             "corrected_text": transcript,

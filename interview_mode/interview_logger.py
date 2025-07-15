@@ -29,12 +29,12 @@ def log_qa(question, answer):
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-        print("\n[interview_logger] 📝 Logged Q&A to:", LOG_FILE)
-        print("──────────────── Q&A Log Preview ───────────────")
-        print(f"[{timestamp}]")
-        print(f"👤 Q: {question.strip()[:120]}")
-        print(f"🤖 A: {answer.strip()[:120]}")
-        print("────────────────────────────────────────────────")
+        #print("\n[interview_logger] 📝 Logged Q&A to:", LOG_FILE)
+        #print("──────────────── Q&A Log Preview ───────────────")
+        #print(f"[{timestamp}]")
+        #print(f"👤 Q: {question.strip()[:120]}")
+        #print(f"🤖 A: {answer.strip()[:120]}")
+        #print("────────────────────────────────────────────────")
 
     except Exception as e:
         print(f"[interview_logger] ❌ Logging error: {e}")
