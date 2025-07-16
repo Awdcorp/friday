@@ -37,10 +37,13 @@ on_done_callback = None
 raw_response_history = []
 conversation_history = []
 
+# === Module tag for all logs
+MODULE = "[raw_buffer]"
+
 
 def debug(msg):
     if DEBUG:
-        print(msg)
+        print(f"{MODULE} {msg}")
 
 
 def start_raw_buffer_handler(callback=None, on_done=None):
@@ -57,7 +60,7 @@ def start_raw_buffer_handler(callback=None, on_done=None):
     silence_thread = threading.Thread(target=_silence_watcher, daemon=True)
     silence_thread.start()
 
-    debug("[raw_buffer_handler] ✅ Handler started")
+    debug("✅ Handler started")
 
 
 def stop_raw_buffer_handler():
@@ -66,20 +69,19 @@ def stop_raw_buffer_handler():
     """
     global active
     active = False
-    debug("[raw_buffer_handler] 🛑 Handler stopped")
+    debug("🛑 Handler stopped")
 
 
 def add_fragment(fragment):
     """
     Add a new transcript chunk to the buffer.
-    Resets the silence timer.
     """
     global last_input_time
     with buffer_lock:
         buffer_fragments.append(fragment.strip())
         last_input_time = time.time()
 
-    debug(f"[raw_buffer_handler] ➕ Fragment received: \"{fragment.strip()}\"")
+    debug(f"📥 Fragment received: \"{fragment.strip()}\"")
 
 
 def _silence_watcher():
@@ -98,19 +100,18 @@ def _silence_watcher():
 
             elapsed = time.time() - last_input_time
 
-            # Auto-clear old history after 60s of no input
             if elapsed > 60:
                 conversation_history.clear()
                 raw_response_history.clear()
-                debug("[raw_buffer_handler] ⏳ Long silence: clearing history")
+                debug("🧹 Long silence (60s) — memory cleared.")
 
             if elapsed < SILENCE_TIMEOUT or is_processing:
                 continue
 
             combined = " ".join(buffer_fragments).strip()
             buffer_fragments.clear()
-            is_processing = True  # ✅ Move up to avoid race
-            debug(f"[silence_watcher] ⏱️ No input for {SILENCE_TIMEOUT}s. Triggering GPT...")
+            is_processing = True  # Set before launching thread
+            debug(f"🕒 Silence timeout ({SILENCE_TIMEOUT}s) — triggering GPT...")
 
         threading.Thread(target=_process_buffer, args=(combined,), daemon=True).start()
 
@@ -118,34 +119,32 @@ def _silence_watcher():
 def _process_buffer(text):
     """
     Sends the buffer to GPT and handles the result.
-    Includes last 3-turn conversation memory and scrollable popup history.
     """
     global is_processing, conversation_history, raw_response_history
 
-    debug("[raw_buffer_handler] 🧠 Processing buffer...")
-    debug("👉 " + text)
+    debug(f"🧠 Processing started → \"{text}\"")
 
     try:
         system_prompt = PROMPT_PROFILES.get(ACTIVE_PROFILE, PROMPT_PROFILES["software_engineer"]).strip()
         messages = [{"role": "system", "content": system_prompt}]
 
-        # Add last 3 user+assistant exchanges with improved wording
+        # Add last few exchanges
         for i in range(0, len(conversation_history[-6:]), 2):
             prev_user = conversation_history[-6:][i]["content"]
             prev_gpt = conversation_history[-6:][i+1]["content"]
             messages.append({"role": "user", "content": f"Earlier, the user asked: {prev_user}"})
             messages.append({"role": "assistant", "content": f"The assistant replied: {prev_gpt}"})
 
-        # Add current user message
+        # Add current message
         messages.append({"role": "user", "content": text})
 
-        # === Call GPT with timeout ===
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages,
             temperature=0.5,
-            timeout=15  # ✅ timeout added
+            timeout=15
         )
+
         answer = response.choices[0].message.content.strip()
 
         # Update memory
@@ -160,15 +159,18 @@ def _process_buffer(text):
 
         popup_text = "\n\n".join(raw_response_history)
 
+        # Final delivery
         if response_callback:
             response_callback(popup_text, popup_id=3)
+            debug("✅ Response sent to popup 3")
         else:
-            print("[raw_buffer_handler] 🤖 GPT Answer:\n", answer)
+            print(f"{MODULE} 🤖 GPT Answer:\n{answer}")
 
     except Exception as e:
-        print("[raw_buffer_handler] ❌ GPT Error:", e)
+        print(f"{MODULE} ❌ GPT Error: {e}")
 
     finally:
         is_processing = False
         if on_done_callback:
             on_done_callback()
+        debug("📦 Processing complete.\n")

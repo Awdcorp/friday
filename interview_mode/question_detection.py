@@ -2,10 +2,12 @@ import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
-import logging
 
-# === Setup minimal logger ===
-logging.basicConfig(level=logging.INFO, format="🔍 %(message)s")
+# === Module tag for logging ===
+MODULE = "[detect]"
+
+def log(msg):
+    print(f"{MODULE} {msg}")
 
 # === Load OpenAI API key ===
 load_dotenv()
@@ -20,7 +22,7 @@ WORD_TRIGGER_THRESHOLD = 2  # Minimum number of words to trigger classification
 def classify_combined_input(combined_input, base_input=None, buffer_only=None):
     """
     Classifies the combined input using GPT with optional base context.
-    Returns a JSON-compatible dictionary with intent and debug fields.
+    Returns a dictionary with intent and related fields.
     """
 
     # === Few-shot examples to guide GPT ===
@@ -93,6 +95,7 @@ Current Input (combined fragment): "{combined_input.strip()}"
             return parsed
 
         except Exception:
+            log("❌ Failed to parse GPT response.")
             return {
                 "intent": "parse_error",
                 "raw_output": output,
@@ -101,6 +104,7 @@ Current Input (combined fragment): "{combined_input.strip()}"
             }
 
     except Exception as e:
+        log(f"❌ GPT API Error: {e}")
         return {
             "intent": "error",
             "error": str(e),
@@ -119,11 +123,12 @@ def detect_question(input_text):
     input_text = input_text.strip()
     word_count = len(input_text.split())
 
-    logging.info(f"[detect_question 🎙️ Fragment Received] → \"{input_text}\"")
+    log(f"🎙️ Fragment: \"{input_text}\"")
 
     # === Skip filler fragments ===
     filler_phrases = {"hmm", "uh", "uhh", "uhhh", "let me think", "ah", "ahh"}
     if input_text.lower() in filler_phrases:
+        log("⏳ Filler skipped.")
         return {
             "intent": "waiting_for_more_input",
             "note": "filler skipped",
@@ -131,68 +136,44 @@ def detect_question(input_text):
             "words_collected": sum(len(f.split()) for f in input_chain)
         }
 
-    # === Heuristic shortcut for direct questions ===
+    # === Shortcut: single direct question ===
     if word_count >= 3 and not input_chain:
         if input_text.lower().startswith(("what is", "define", "explain", "how does", "can you", "when does", "why does")):
             input_chain.append(input_text)
-            combined_input = input_text
             result = classify_combined_input(
-                combined_input,
+                input_text,
                 base_input=last_question,
                 buffer_only=input_text
             )
 
             if result.get("intent") in {"new_question", "program_start", "follow_up", "program_follow_up"}:
                 input_chain = []
-
-                question_text = combined_input.strip().rstrip("?")
                 if result["intent"] in {"new_question", "program_start"}:
-                    question_text += "?"
-                    last_question = question_text  # ✅ update only for new or program
+                    last_question = input_text.rstrip("?") + "?"
 
-                # ❌ Do not update for follow-up intents
-
-                print("\n[interview_intent]🧩 [Fragment] \"" + input_text + "\"")
-                print("🔗 Base     :", result.get("base_input") or "None")
-                print("📌 Intent   :", result.get("intent"),
-                      "| prog=" + str(result.get("is_programming")),
-                      "| follow=" + str(result.get("is_follow_up")))
-                print("🧠 Question :", last_question)
-
+                log(f"✅ Intent: {result['intent']} | Prog: {result['is_programming']} | Follow: {result['is_follow_up']} | Topic: {result.get('topic', '')}")
                 return result
 
             return result
 
-    # === Buffer and wait ===
+    # === Buffered path ===
     input_chain.append(input_text)
     buffer_only = " ".join(input_chain)
-    combined_input = buffer_only
     total_words = len(buffer_only.split())
 
     if total_words >= WORD_TRIGGER_THRESHOLD:
         result = classify_combined_input(
-            combined_input,
+            buffer_only,
             base_input=last_question,
             buffer_only=buffer_only
         )
 
         if result.get("intent") in {"new_question", "program_start", "follow_up", "program_follow_up"}:
             input_chain = []
-
-            question_text = combined_input.strip().rstrip("?")
             if result["intent"] in {"new_question", "program_start"}:
-                question_text += "?"
-                last_question = question_text  # ✅ update only if new root
+                last_question = buffer_only.rstrip("?") + "?"
 
-            # ❌ Do not update for follow-up
-
-            print("\n[interview_intent]🧩 [Fragment] \"" + input_text + "\"")
-            print("🔗 Base     :", result.get("base_input") or "None")
-            print("📌 Intent   :", result.get("intent"),
-                  "| prog=" + str(result.get("is_programming")),
-                  "| follow=" + str(result.get("is_follow_up")))
-            print("🧠 Question :", last_question)
-
+            log(f"✅ Intent: {result['intent']} | Prog: {result['is_programming']} | Follow: {result['is_follow_up']} | Topic: {result.get('topic', '')}")
             return result
 
         return result
@@ -203,4 +184,3 @@ def detect_question(input_text):
         "fragments_collected": len(input_chain),
         "words_collected": total_words
     }
-

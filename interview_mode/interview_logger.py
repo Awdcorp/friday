@@ -8,6 +8,13 @@ import json
 from datetime import datetime
 
 LOG_FILE = "interview_logs.jsonl"
+MODULE = "[interview_logger]"
+SHOW_PREVIEW = False  # Toggle to show Q&A preview in console
+
+
+def log(msg):
+    print(f"{MODULE} {msg}")
+
 
 def log_qa(question, answer):
     """
@@ -29,12 +36,12 @@ def log_qa(question, answer):
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-        #print("\n[interview_logger] 📝 Logged Q&A to:", LOG_FILE)
-        #print("──────────────── Q&A Log Preview ───────────────")
-        #print(f"[{timestamp}]")
-        #print(f"👤 Q: {question.strip()[:120]}")
-        #print(f"🤖 A: {answer.strip()[:120]}")
-        #print("────────────────────────────────────────────────")
+        log(f"✅ Logged Q&A | Time: {timestamp}")
+
+        if SHOW_PREVIEW:
+            log("📝 Preview:")
+            log(f"👤 Q: {question.strip()[:80]}")
+            log(f"🤖 A: {answer.strip()[:80]}")
 
     except Exception as e:
-        print(f"[interview_logger] ❌ Logging error: {e}")
+        log(f"❌ Logging error: {e}")
