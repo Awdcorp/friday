@@ -17,25 +17,25 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # === Configuration ===
-SILENCE_TIMEOUT = 8  # seconds of no input to trigger GPT
-DEBUG = True         # toggle debug logging
-MAX_HISTORY = 10     # Number of past GPT responses to keep in popup
-MAX_CONTEXT_TURNS = 3  # Number of exchanges (user + assistant) to keep as GPT context
+SILENCE_TIMEOUT = 8
+DEBUG = True
+MAX_HISTORY = 10
+MAX_CONTEXT_TURNS = 3
 ACTIVE_PROFILE = "software_engineer"
 
 # === Internal state ===
-buffer_fragments = []           # List of incoming speech chunks
-last_input_time = None          # Timestamp of last input
-is_processing = False           # Avoid overlap in GPT responses
-active = False                  # Global run flag
-buffer_lock = threading.Lock()  # Thread safety for shared buffer
-silence_thread = None           # Watcher thread
-response_callback = None        # Function to show result in UI
-on_done_callback = None         # Optional: hook after GPT response
+buffer_fragments = []
+last_input_time = None
+is_processing = False
+active = False
+buffer_lock = threading.Lock()
+silence_thread = None
+response_callback = None
+on_done_callback = None
 
 # === New: Popup and GPT memory
-raw_response_history = []       # Scrollable history for popup 3
-conversation_history = []       # GPT context memory (last 3 user + assistant turns)
+raw_response_history = []
+conversation_history = []
 
 
 def debug(msg):
@@ -87,7 +87,7 @@ def _silence_watcher():
     Monitors silence by checking time since last fragment.
     If timeout occurs, triggers GPT processing.
     """
-    global last_input_time, is_processing
+    global last_input_time, is_processing, conversation_history, raw_response_history
 
     while active:
         time.sleep(1)
@@ -97,19 +97,21 @@ def _silence_watcher():
                 continue
 
             elapsed = time.time() - last_input_time
-            if elapsed < SILENCE_TIMEOUT:
+
+            # Auto-clear old history after 60s of no input
+            if elapsed > 60:
+                conversation_history.clear()
+                raw_response_history.clear()
+                debug("[raw_buffer_handler] ⏳ Long silence: clearing history")
+
+            if elapsed < SILENCE_TIMEOUT or is_processing:
                 continue
 
-            if is_processing:
-                debug("[silence_watcher] ⏳ Waiting: GPT already processing...")
-                continue
-
-            # Enough silence, prepare to process
             combined = " ".join(buffer_fragments).strip()
             buffer_fragments.clear()
+            is_processing = True  # ✅ Move up to avoid race
             debug(f"[silence_watcher] ⏱️ No input for {SILENCE_TIMEOUT}s. Triggering GPT...")
-        
-        # Process in a new thread to avoid blocking loop
+
         threading.Thread(target=_process_buffer, args=(combined,), daemon=True).start()
 
 
@@ -120,46 +122,42 @@ def _process_buffer(text):
     """
     global is_processing, conversation_history, raw_response_history
 
-    is_processing = True
-
     debug("[raw_buffer_handler] 🧠 Processing buffer...")
     debug("👉 " + text)
 
     try:
-        # === Build GPT prompt with explicit history ===
-        messages = [{"role": "system", "content": PROMPT_PROFILES[ACTIVE_PROFILE].strip()}]
+        system_prompt = PROMPT_PROFILES.get(ACTIVE_PROFILE, PROMPT_PROFILES["software_engineer"]).strip()
+        messages = [{"role": "system", "content": system_prompt}]
 
-        # Add last 3 user+assistant exchanges with explicit context wording
+        # Add last 3 user+assistant exchanges with improved wording
         for i in range(0, len(conversation_history[-6:]), 2):
             prev_user = conversation_history[-6:][i]["content"]
             prev_gpt = conversation_history[-6:][i+1]["content"]
-            messages.append({"role": "user", "content": f"Previously, the user asked: {prev_user}"})
-            messages.append({"role": "assistant", "content": f"The assistant answered: {prev_gpt}"})
+            messages.append({"role": "user", "content": f"Earlier, the user asked: {prev_user}"})
+            messages.append({"role": "assistant", "content": f"The assistant replied: {prev_gpt}"})
 
         # Add current user message
         messages.append({"role": "user", "content": text})
 
-
-        # === Call GPT ===
+        # === Call GPT with timeout ===
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages,
-            temperature=0.5
+            temperature=0.5,
+            timeout=15  # ✅ timeout added
         )
         answer = response.choices[0].message.content.strip()
 
-        # === Update GPT conversation memory ===
+        # Update memory
         conversation_history.append({"role": "user", "content": text})
         conversation_history.append({"role": "assistant", "content": answer})
         if len(conversation_history) > 6:
             conversation_history = conversation_history[-6:]
 
-        # === Update scrollable history for popup ===
         raw_response_history.append(f"🧠 {answer}")
         if len(raw_response_history) > MAX_HISTORY:
             raw_response_history.pop(0)
 
-        # Combine history into scrollable popup text
         popup_text = "\n\n".join(raw_response_history)
 
         if response_callback:

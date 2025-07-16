@@ -73,6 +73,7 @@ Current Input (combined fragment): "{combined_input.strip()}"
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
+            timeout=10,
             temperature=0,
             messages=[
                 {"role": "system", "content": system_prompt},

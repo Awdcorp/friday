@@ -42,85 +42,89 @@ def start_interview_mode(update_text_callback, response_callback, profile="softw
         add_fragment(transcript)
 
         def run(transcript=transcript):
-            print("\n[interview_handler] 🧠 Starting GPT processing thread...")
+            try:
+                print("\n[interview_handler] 🧠 Starting GPT processing thread...")
 
-            # === Step 1: Detect Question Intent ===
-            if profile == "software_engineer":
-                result = detect_question(transcript)
+                # === Step 1: Detect Question Intent ===
+                if profile == "software_engineer":
+                    result = detect_question(transcript)
 
-                # Skip if more fragments are needed or input is irrelevant
-                if result.get("intent") in {"waiting_for_more_input", "irrelevant_or_incomplete"}:
-                    print(f"[interview_handler] ⏳ Buffering... Intent: {result.get('intent')}")
-                    return
+                    # Skip if more fragments are needed or input is irrelevant
+                    if result.get("intent") in {"waiting_for_more_input", "irrelevant_or_incomplete"}:
+                        print(f"[interview_handler] ⏳ Buffering... Intent: {result.get('intent')}")
+                        return
 
-                # Extract useful info
-                intent = result["intent"]
-                is_programming = result.get("is_programming", False)
-                topic = result.get("topic", "")
-                corrected_text = result.get("current_input", transcript)
-                is_follow_up = result.get("is_follow_up", False)
+                    # Extract useful info
+                    intent = result["intent"]
+                    is_programming = result.get("is_programming", False)
+                    topic = result.get("topic", "")
+                    corrected_text = result.get("current_input", transcript)
+                    is_follow_up = result.get("is_follow_up", False)
 
-                print(f"[interview_handler] 🧠 Intent: {intent} | Programming: {is_programming} | Topic: {topic} | Follow-up: {is_follow_up}")
+                    print(f"[interview_handler] 🧠 Intent: {intent} | Programming: {is_programming} | Topic: {topic} | Follow-up: {is_follow_up}")
 
-                # === Step 2: Determine Popup UI Behavior ===
-                replace_popup = True
-                popup_id = 1
-
-                if intent == "program_start":
-                    # New programming thread starts
-                    interview_state.update({
-                        "program_thread_active": True,
-                        "program_topic": topic,
-                        "followup_count": 0
-                    })
+                    # === Step 2: Determine Popup UI Behavior ===
+                    replace_popup = True
                     popup_id = 1
 
-                elif is_follow_up and interview_state["program_thread_active"]:
-                    # Inside a programming thread: follow-up
-                    interview_state["followup_count"] += 1
-                    popup_id = 2  # Use follow-up popup
-
-                    if interview_state["followup_count"] > 3:
-                        # Auto-end thread after 3 follow-ups
+                    if intent == "program_start":
+                        # New programming thread starts
                         interview_state.update({
-                            "program_thread_active": False,
-                            "program_topic": None,
-                            "followup_count": 0,
-                            "program_anchor_question": None,
-                            "program_anchor_answer": None
+                            "program_thread_active": True,
+                            "program_topic": topic,
+                            "followup_count": 0
                         })
+                        popup_id = 1
 
-            else:
-                # For other profiles, skip intent logic
-                print("[interview_handler] 🧾 Skipping intent logic for non-programming profile.")
-                corrected_text = transcript
-                popup_id = 1
-                replace_popup = True
+                    elif is_follow_up and interview_state["program_thread_active"]:
+                        # Inside a programming thread: follow-up
+                        interview_state["followup_count"] += 1
+                        popup_id = 2  # Use follow-up popup
 
-            # === Step 3: Send to GPT ===
-            print("[interview_handler] 🚀 Sending prompt to GPT...")
-            answer = ask_gpt_interview(corrected_text, profile=profile)
+                        if interview_state["followup_count"] > 3:
+                            # Auto-end thread after 3 follow-ups
+                            interview_state.update({
+                                "program_thread_active": False,
+                                "program_topic": None,
+                                "followup_count": 0,
+                                "program_anchor_question": None,
+                                "program_anchor_answer": None
+                            })
 
-            # === Step 4: Update UI and Logs ===
-            print("[interview_handler] 📤 Sending answer to UI and logger...")
-            response_callback(f"🤖 {answer}", replace_popup=replace_popup, popup_id=popup_id)
-            log_qa(corrected_text, answer)
-            update_interview_context(corrected_text, answer)
+                else:
+                    # For other profiles, skip intent logic
+                    print("[interview_handler] 🧾 Skipping intent logic for non-programming profile.")
+                    corrected_text = transcript
+                    popup_id = 1
+                    replace_popup = True
 
-            # === Step 5: Update Internal State ===
-            interview_state.update({
-                "mode": "ANSWERING",
-                "last_question": corrected_text,
-                "last_answer": answer,
-                "last_time": time.time()
-            })
+                # === Step 3: Send to GPT ===
+                print("[interview_handler] 🚀 Sending prompt to GPT...")
+                answer = ask_gpt_interview(corrected_text, profile=profile)
 
-            if profile == "software_engineer" and intent == "program_start":
-                # Save anchor for this thread
-                interview_state["program_anchor_question"] = corrected_text
-                interview_state["program_anchor_answer"] = answer
+                # === Step 4: Update UI and Logs ===
+                print("[interview_handler] 📤 Sending answer to UI and logger...")
+                response_callback(f"🤖 {answer}", replace_popup=replace_popup, popup_id=popup_id)
+                log_qa(corrected_text, answer)
+                update_interview_context(corrected_text, answer)
 
-            print("[interview_handler] ✅ Interview Q&A complete.")
+                # === Step 5: Update Internal State ===
+                interview_state.update({
+                    "mode": "ANSWERING",
+                    "last_question": corrected_text,
+                    "last_answer": answer,
+                    "last_time": time.time()
+                })
+
+                if profile == "software_engineer" and intent == "program_start":
+                    # Save anchor for this thread
+                    interview_state["program_anchor_question"] = corrected_text
+                    interview_state["program_anchor_answer"] = answer
+
+                print("[interview_handler] ✅ Interview Q&A complete.")
+
+            except Exception as e:
+                print(f"[interview_handler] ❌ Error in processing thread: {e}")
 
         # Run processing in background thread
         threading.Thread(target=run).start()
