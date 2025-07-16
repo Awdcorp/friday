@@ -423,6 +423,8 @@ def show_floating_response(text, popup_id=1):
     lbl = tk.Label(frame, text=text, font=("Segoe UI", 12), fg="#DDDDDD", bg="#2b2b2b",
                    wraplength=popup_width - 20, justify="left", anchor="nw")
     lbl.pack(padx=(8, 0), pady=6, anchor="nw", fill="x")
+    canvas.update_idletasks()
+    canvas.yview_moveto(1.0)
 
     resize_grip = tk.Frame(popup, cursor="bottom_right_corner", bg="#444", width=10, height=10)
     resize_grip.place(relx=1.0, rely=1.0, anchor="se")

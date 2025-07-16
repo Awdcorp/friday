@@ -35,6 +35,10 @@ interview_state = {
     "listener_source": "system"          # mic or system audio
 }
 
+# === Rolling response memory (used to build scrollable popup text)
+raw_response_history = []
+MAX_HISTORY = 10
+
 # === Start Interview Mode ===
 def start_interview_mode(update_text_callback, response_callback, profile="software_engineer", source="system"):
     """
@@ -103,8 +107,18 @@ def start_interview_mode(update_text_callback, response_callback, profile="softw
                 log("🚀 Sending to GPT...")
                 answer = ask_gpt_interview(corrected_text, profile=profile)
 
+                # === Build cumulative response text if replacing
+                if replace_popup:
+                    raw_response_history.append(f"🤖 {answer}")
+                    if len(raw_response_history) > MAX_HISTORY:
+                        raw_response_history.pop(0)
+                    response_text = "\n\n".join(raw_response_history)
+                else:
+                    response_text = f"🤖 {answer}"
+
                 log(f"📤 Response ready → popup {popup_id}")
-                response_callback(f"🤖 {answer}", replace_popup=replace_popup, popup_id=popup_id)
+                response_callback(response_text, replace_popup=replace_popup, popup_id=popup_id)
+
                 log_qa(corrected_text, answer)
                 update_interview_context(corrected_text, answer)
 
